@@ -1,0 +1,167 @@
+[
+  {
+    "Class": "ClassInfo",
+    "Type": "PackingSize",
+    "Description": "When creating JSON.json files you can choose whether each column vaues maps to a single value or a list of values",
+    "Name": "MainStation",
+    "InActive": "",
+    "Axis@Name": "",
+    "StationValue": 0,
+    "StationType": "",
+    "StationAngle": 0
+  },
+  {
+    "Class": "ClassInfo",
+    "Type": "PackingType",
+    "Description": "When creating JSON.json files you can choose the type for each column values",
+    "Name": "MainStation",
+    "InActive": "",
+    "Axis@Name": "[Str]",
+    "StationValue": 0,
+    "StationType": "[Dec]",
+    "StationAngle": 0
+  },
+  {
+    "Class": "ClassInfo",
+    "Type": "Workflow",
+    "Description": "When creating JSON.json files you can mark some specific columns which are only relevant for given workflow",
+    "Name": "MainStation",
+    "InActive": "",
+    "Axis@Name": "",
+    "StationValue": 0,
+    "StationType": "",
+    "StationAngle": 0
+  },
+  {
+    "Class": "ClassInfo",
+    "Type": "Unit",
+    "Description": "",
+    "Name": "MainStation",
+    "InActive": "",
+    "Axis@Name": "",
+    "StationValue": 0,
+    "StationType": "[m]",
+    "StationAngle": 0
+  },
+  {
+    "Class": "MainStation",
+    "Type": "Start",
+    "Description": "Start DeckStart",
+    "Name": "DeckStart",
+    "InActive": "",
+    "Axis@Name": "RA",
+    "StationValue": 0,
+    "StationType": "",
+    "StationAngle": 0
+  },
+  {
+    "Class": "MainStation",
+    "Type": "Support",
+    "Description": "Support S1",
+    "Name": "S1",
+    "InActive": "",
+    "Axis@Name": "RA",
+    "StationValue": 0,
+    "StationType": "0.65",
+    "StationAngle": 0.65
+  },
+  {
+    "Class": "MainStation",
+    "Type": "Support",
+    "Description": "Support S2",
+    "Name": "S2",
+    "InActive": "",
+    "Axis@Name": "RA",
+    "StationValue": 0,
+    "StationType": "145",
+    "StationAngle": 145.65
+  },
+  {
+    "Class": "MainStation",
+    "Type": "Support",
+    "Description": "Support S3",
+    "Name": "S3",
+    "InActive": "",
+    "Axis@Name": "RA",
+    "StationValue": 0,
+    "StationType": "155",
+    "StationAngle": 300.65
+  },
+  {
+    "Class": "MainStation",
+    "Type": "Support",
+    "Description": "Support S4",
+    "Name": "S4",
+    "InActive": "",
+    "Axis@Name": "RA",
+    "StationValue": 0,
+    "StationType": "30",
+    "StationAngle": 330.65
+  },
+  {
+    "Class": "MainStation",
+    "Type": "End",
+    "Description": "End DeckEnd",
+    "Name": "DeckEnd",
+    "InActive": "",
+    "Axis@Name": "RA",
+    "StationValue": 0,
+    "StationType": "0.65",
+    "StationAngle": 331.3
+  },
+  {
+    "Class": "MainStation",
+    "Type": "SecondaryStation",
+    "Description": "SecondaryStation CastingSegment1",
+    "Name": "CastingSegment1",
+    "InActive": "",
+    "Axis@Name": "RA",
+    "StationValue": 0,
+    "StationType": "0",
+    "StationAngle": 0
+  },
+  {
+    "Class": "MainStation",
+    "Type": "SecondaryStation",
+    "Description": "SecondaryStation CastingSegment2",
+    "Name": "CastingSegment2",
+    "InActive": "",
+    "Axis@Name": "RA",
+    "StationValue": 0,
+    "StationType": "0",
+    "StationAngle": 300.65
+  },
+  {
+    "Class": "MainStation",
+    "Type": "SecondaryStation",
+    "Description": "SecondaryStation CastingSegment3",
+    "Name": "CastingSegment3",
+    "InActive": "",
+    "Axis@Name": "RA",
+    "StationValue": 0,
+    "StationType": "0",
+    "StationAngle": 331.3
+  },
+  {
+    "Class": "MainStation",
+    "Type": "SecondaryStation",
+    "Description": "SecondaryStation StartOfCracked",
+    "Name": "StartOfCracked",
+    "InActive": "",
+    "Axis@Name": "RA",
+    "StationValue": 0,
+    "StationType": "-10",
+    "StationAngle": 135.65
+  },
+  {
+    "Class": "MainStation",
+    "Type": "SecondaryStation",
+    "Description": "SecondaryStation EndOfCracked",
+    "Name": "EndOfCracked",
+    "InActive": "",
+    "Axis@Name": "RA",
+    "StationValue": 0,
+    "StationType": "-20",
+    "StationAngle": 280.65
+  }
+]

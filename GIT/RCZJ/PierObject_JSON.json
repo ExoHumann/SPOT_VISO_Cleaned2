@@ -1,0 +1,223 @@
+[
+  {
+    "No": "",
+    "Class": "ClassInfo",
+    "Type": "PackingSize",
+    "Description": "When creating JSON.json files you can choose whether each column vaues maps to a single value or a list of values",
+    "Name": "PierObject",
+    "InActive": "",
+    "Axis@Name": "",
+    "CrossSection@Type": "",
+    "CrossSection@Name": "",
+    "ObjectAxisName": "",
+    "Ref-PlacementId": "",
+    "Ref-StationOffset": "",
+    "StationValue": 0,
+    "Top-CrossSection_Point@Name": "",
+    "Top-Yoffset": 0,
+    "Top-Zoffset": 0,
+    "Top-CrossSection@Ncs": 0,
+    "Bot-CrossSection_Point@Name": "",
+    "Bot-Yoffset": 0,
+    "Bot-Zoffset": 0,
+    "Bot-CrossSection@Ncs": 0,
+    "Bot-PierElevation": 0,
+    "RotationAngle": 0,
+    "Grp": 0,
+    "Fixation": "",
+    "Internal-PlacementId": [
+      "[many]"
+    ],
+    "Internal_Ref-PlacementId": [
+      "[many]"
+    ],
+    "Internal_Ref-StationOffset": [
+      "[many]"
+    ],
+    "Internal-CrossSection@Ncs": [
+      0
+    ],
+    "GrpOffset": [
+      0
+    ],
+    "AxisVariables": {
+    }
+  },
+  {
+    "No": "",
+    "Class": "ClassInfo",
+    "Type": "PackingType",
+    "Description": "When creating JSON.json files you can choose the type for each column values",
+    "Name": "PierObject",
+    "InActive": "",
+    "Axis@Name": "[Str]",
+    "CrossSection@Type": "[Str]",
+    "CrossSection@Name": "[Str]",
+    "ObjectAxisName": "[Str]",
+    "Ref-PlacementId": "[Str]",
+    "Ref-StationOffset": "[Str]",
+    "StationValue": 0,
+    "Top-CrossSection_Point@Name": "[Str]",
+    "Top-Yoffset": 0,
+    "Top-Zoffset": 0,
+    "Top-CrossSection@Ncs": 0,
+    "Bot-CrossSection_Point@Name": "[Str]",
+    "Bot-Yoffset": 0,
+    "Bot-Zoffset": 0,
+    "Bot-CrossSection@Ncs": 0,
+    "Bot-PierElevation": 0,
+    "RotationAngle": 0,
+    "Grp": 0,
+    "Fixation": "[Str]",
+    "Internal-PlacementId": [
+      "[Str]"
+    ],
+    "Internal_Ref-PlacementId": [
+      "[Str]"
+    ],
+    "Internal_Ref-StationOffset": [
+      "[Str]"
+    ],
+    "Internal-CrossSection@Ncs": [
+      0
+    ],
+    "GrpOffset": [
+      0
+    ],
+    "AxisVariables": {
+    }
+  },
+  {
+    "No": "",
+    "Class": "ClassInfo",
+    "Type": "Workflow",
+    "Description": "When creating JSON.json files you can mark some specific columns which are only relevant for given workflow",
+    "Name": "PierObject",
+    "InActive": "",
+    "Axis@Name": "",
+    "CrossSection@Type": "[DK]",
+    "CrossSection@Name": "[DK]",
+    "ObjectAxisName": "[DK]",
+    "Ref-PlacementId": "",
+    "Ref-StationOffset": "",
+    "StationValue": 0,
+    "Top-CrossSection_Point@Name": "",
+    "Top-Yoffset": 0,
+    "Top-Zoffset": 0,
+    "Top-CrossSection@Ncs": 0,
+    "Bot-CrossSection_Point@Name": "",
+    "Bot-Yoffset": 0,
+    "Bot-Zoffset": 0,
+    "Bot-CrossSection@Ncs": 0,
+    "Bot-PierElevation": 0,
+    "RotationAngle": 0,
+    "Grp": 0,
+    "Fixation": "",
+    "Internal-PlacementId": [
+      "[DK]"
+    ],
+    "Internal_Ref-PlacementId": [
+      "[DK]"
+    ],
+    "Internal_Ref-StationOffset": [
+      "[DK]"
+    ],
+    "Internal-CrossSection@Ncs": [
+      0
+    ],
+    "GrpOffset": [
+      0
+    ],
+    "AxisVariables": {
+    }
+  },
+  {
+    "No": "",
+    "Class": "ClassInfo",
+    "Type": "Unit",
+    "Description": "",
+    "Name": "PierObject",
+    "InActive": "",
+    "Axis@Name": "",
+    "CrossSection@Type": "",
+    "CrossSection@Name": "",
+    "ObjectAxisName": "",
+    "Ref-PlacementId": "",
+    "Ref-StationOffset": "[m]",
+    "StationValue": 0,
+    "Top-CrossSection_Point@Name": "",
+    "Top-Yoffset": 0,
+    "Top-Zoffset": 0,
+    "Top-CrossSection@Ncs": 0,
+    "Bot-CrossSection_Point@Name": "",
+    "Bot-Yoffset": 0,
+    "Bot-Zoffset": 0,
+    "Bot-CrossSection@Ncs": 0,
+    "Bot-PierElevation": 0,
+    "RotationAngle": 0,
+    "Grp": 0,
+    "Fixation": "",
+    "Internal-PlacementId": [
+    ],
+    "Internal_Ref-PlacementId": [
+    ],
+    "Internal_Ref-StationOffset": [
+      "[m]"
+    ],
+    "Internal-CrossSection@Ncs": [
+    ],
+    "GrpOffset": [
+    ],
+    "AxisVariables": {
+    }
+  },
+  {
+    "No": "1",
+    "Class": "PierObject",
+    "Type": "Pier",
+    "Description": "",
+    "Name": "PierObject",
+    "InActive": "",
+    "Axis@Name": "RA",
+    "CrossSection@Type": "Error 2042",
+    "CrossSection@Name": "Error 2042",
+    "ObjectAxisName": "PierObject",
+    "Ref-PlacementId": "S1",
+    "Ref-StationOffset": "0",
+    "StationValue": 0.65,
+    "Top-CrossSection_Point@Name": "B0BP",
+    "Top-Yoffset": 0,
+    "Top-Zoffset": 0,
+    "Top-CrossSection@Ncs": 3000,
+    "Bot-CrossSection_Point@Name": "B0BP",
+    "Bot-Yoffset": 0,
+    "Bot-Zoffset": 10,
+    "Bot-CrossSection@Ncs": 3000,
+    "Bot-PierElevation": 0,
+    "RotationAngle": 0,
+    "Grp": 310,
+    "Fixation": "",
+    "Internal-PlacementId": [
+      "3 [:] 12 [:] 13 [:] 14 [:] 15 [:] 16 [:] 17 [:] 18 [:] 19 [:] 20 [:] 21 [:] 22 [:] 23 [:] 24 [:] 25 [:] 26 [:] 27 [:] 28 [:] 29 [:] 30 [:] 31 [:] 32 [:] 33 [:] 34 [:] 35 [:] 36 [:] 37 [:] 38 [:] 39 [:] 40 [:] 41 [:] 42 [:] 43 [:] 44 [:] 45 [:] 46 [:] 47",
+      "22"
+    ],
+    "Internal_Ref-PlacementId": [
+      "sss",
+      "3 [:] 5 [:] 6"
+    ],
+    "Internal_Ref-StationOffset": [
+      "3 [:] 5 [:] 6"
+    ],
+    "Internal-CrossSection@Ncs": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "GrpOffset": [
+    ],
+    "AxisVariables": {
+    }
+  }
+]

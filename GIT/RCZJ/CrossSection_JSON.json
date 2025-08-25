@@ -1,0 +1,438 @@
+[
+  {
+    "Class": "ClassInfo",
+    "Type": "PackingSize",
+    "Description": "When creating JSON.json files you can choose whether each column vaues maps to a single value or a list of values",
+    "Name": "CrossSection",
+    "InActive": "",
+    "NCS": 0,
+    "Material_Conc": 0,
+    "Material_Reif": 0,
+    "JSON_Name": "",
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "Class": "ClassInfo",
+    "Type": "PackingType",
+    "Description": "When creating JSON.json files you can choose the type for each column values",
+    "Name": "CrossSection",
+    "InActive": "",
+    "NCS": 0,
+    "Material_Conc": 0,
+    "Material_Reif": 0,
+    "JSON_Name": "[Int]",
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "Class": "ClassInfo",
+    "Type": "Workflow",
+    "Description": "When creating JSON.json files you can mark some specific columns which are only relevant for given workflow",
+    "Name": "CrossSection",
+    "InActive": "",
+    "NCS": 0,
+    "Material_Conc": 0,
+    "Material_Reif": 0,
+    "JSON_Name": "",
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "Class": "ClassInfo",
+    "Type": "Unit",
+    "Description": "",
+    "Name": "CrossSection",
+    "InActive": "",
+    "NCS": 0,
+    "Material_Conc": 0,
+    "Material_Reif": 0,
+    "JSON_Name": "",
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "Class": "CrossSection",
+    "Type": "Deck",
+    "Description": "test",
+    "Name": "MASTER_Deck",
+    "InActive": "",
+    "NCS": 111,
+    "Material_Conc": 101,
+    "Material_Reif": 0,
+    "JSON_Name": "200",
+    "Points": [
+      {
+        "PointName": "O",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "UM",
+        "CoorY": "0",
+        "CoorZ": "H_QS",
+        "CoorYVal": "0",
+        "CoorZVal": 2750.00023841857
+      },
+      {
+        "PointName": "UL",
+        "CoorY": "-37+B_TR/2-(1/TAN((W_ST)*(Pi/180))*(H_QS-T_FBA/COS((Q_NG/100)*(Pi/180))-B_TR/2*Q_NG/100))",
+        "CoorZ": "H_QS",
+        "CoorYVal": "Error 2029",
+        "CoorZVal": 2750.00023841857
+      },
+      {
+        "PointName": "UR",
+        "CoorY": "-37-B_TR/2+(1/TAN((W_ST)*(Pi/180))*(H_QS-T_FBA/COS((Q_NG/100)*(Pi/180))+B_TR/2*Q_NG/100))",
+        "CoorZ": "H_QS",
+        "CoorYVal": "Error 2029",
+        "CoorZVal": 2750.00023841857
+      },
+      {
+        "PointName": "AKL",
+        "CoorY": "B_TR/2-37",
+        "CoorZ": "+T_FBA/COS((Q_NG/100)*(Pi/180))+B_TR/2*Q_NG/100",
+        "CoorYVal": 4250.50038146972,
+        "CoorZVal": "Error 2029"
+      },
+      {
+        "PointName": "AKR",
+        "CoorY": "-B_TR/2-37",
+        "CoorZ": "+T_FBA/COS((Q_NG/100)*(Pi/180))-B_TR/2*Q_NG/100",
+        "CoorYVal": "-4324.50038146972",
+        "CoorZVal": "Error 2029"
+      },
+      {
+        "PointName": "OL",
+        "CoorY": "(B_FB/2)+EX",
+        "CoorZ": "((B_FB/2+EX-1900)*Q_NG/100)-1900*0.025",
+        "CoorYVal": 7950.00028610225,
+        "CoorZVal": 134.000008583068
+      },
+      {
+        "PointName": "OR",
+        "CoorY": "(-B_FB/2)+EX-75",
+        "CoorZ": "(-B_FB/2+EX)*Q_NG/100",
+        "CoorYVal": "-8025.00028610225",
+        "CoorZVal": "-238.500008583068"
+      },
+      {
+        "PointName": "1L",
+        "CoorY": "-299.999952316284",
+        "CoorZ": 100.000023841857,
+        "CoorYVal": "-299.999952316284",
+        "CoorZVal": 100.000023841857
+      },
+      {
+        "PointName": "2L",
+        "CoorY": "-400.000095367431",
+        "CoorZ": 400.000035762786,
+        "CoorYVal": "-400.000095367431",
+        "CoorZVal": 400.000035762786
+      },
+      {
+        "PointName": "3L",
+        "CoorY": "-500",
+        "CoorZ": 699.999988079071,
+        "CoorYVal": "-500",
+        "CoorZVal": 699.999988079071
+      },
+      {
+        "PointName": "4L",
+        "CoorY": "-600.000143051147",
+        "CoorZ": "1100.0000834465",
+        "CoorYVal": "-600.000143051147",
+        "CoorZVal": "1100.0000834465"
+      },
+      {
+        "PointName": "5L",
+        "CoorY": "-700.000047683715",
+        "CoorZ": 1400.00003576278,
+        "CoorYVal": "-700.000047683715",
+        "CoorZVal": 1400.00003576278
+      }
+    ],
+    "Variables": [
+      {
+        "VariableName": "TEST",
+        "VariableValue": 2750.00023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "H_QS:Axis Variable"
+      },
+      {
+        "VariableName": "H_QS",
+        "VariableValue": 2750.00023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "H_QS:Axis Variable"
+      },
+      {
+        "VariableName": "B_TR",
+        "VariableValue": 8575.00076293945,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "B_TR:Axis Variable"
+      },
+      {
+        "VariableName": "W_ST",
+        "VariableValue": "5555",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "W_ST:Axis Variable"
+      },
+      {
+        "VariableName": "T_FBA",
+        "VariableValue": 600.000023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_FBA:Axis Variable"
+      },
+      {
+        "VariableName": "Q_NG",
+        "VariableValue": "3",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "Q_NG:Axis Variable"
+      },
+      {
+        "VariableName": "B_FB",
+        "VariableValue": 15900.0005722045,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "B_FB:Axis Variable"
+      },
+      {
+        "VariableName": "EX",
+        "VariableValue": "0",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "EX:Axis Variable"
+      },
+      {
+        "VariableName": "T_ST",
+        "VariableValue": "500",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_ST:Axis Variable"
+      },
+      {
+        "VariableName": "T_FBI",
+        "VariableValue": 600.000023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_FBI:Axis Variable"
+      },
+      {
+        "VariableName": "T_BA",
+        "VariableValue": 600.000023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_BA:Axis Variable"
+      },
+      {
+        "VariableName": "B_BV",
+        "VariableValue": "2000",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "B_BV:Axis Variable"
+      },
+      {
+        "VariableName": "T_BM",
+        "VariableValue": 350.000023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_BM:Axis Variable"
+      },
+      {
+        "VariableName": "B_KK",
+        "VariableValue": "500",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "B_KK:Axis Variable"
+      },
+      {
+        "VariableName": "T_KP",
+        "VariableValue": "250",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_KP:Axis Variable"
+      },
+      {
+        "VariableName": "B_FBV",
+        "VariableValue": 3000.00023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "B_FBV:Axis Variable"
+      },
+      {
+        "VariableName": "T_FBM",
+        "VariableValue": 350.000023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_FBM:Axis Variable"
+      },
+      {
+        "VariableName": "BEFF_BP",
+        "VariableValue": 100.000001490116,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BEFF_BP:Axis Variable"
+      },
+      {
+        "VariableName": "BEFF_KR",
+        "VariableValue": "2500",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BEFF_KR:Axis Variable"
+      },
+      {
+        "VariableName": "BEFF_FB",
+        "VariableValue": 100.000001490116,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BEFF_FB:Axis Variable"
+      }
+    ]
+  },
+  {
+    "Class": "CrossSection",
+    "Type": "CrossGirder",
+    "Description": "CrossGirder",
+    "Name": "CrossGirder1",
+    "InActive": "",
+    "NCS": 501,
+    "Material_Conc": 120,
+    "Material_Reif": 0,
+    "JSON_Name": "",
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "Class": "CrossSection",
+    "Type": "MainGirder",
+    "Description": "MainGirder01",
+    "Name": "MainGirder01",
+    "InActive": "",
+    "NCS": 4000,
+    "Material_Conc": 400,
+    "Material_Reif": 100,
+    "JSON_Name": "",
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "Class": "CrossSection",
+    "Type": "MainGirder",
+    "Description": "MainGirder02",
+    "Name": "MainGirder02",
+    "InActive": "",
+    "NCS": 4300,
+    "Material_Conc": 400,
+    "Material_Reif": 100,
+    "JSON_Name": "",
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "Class": "CrossSection",
+    "Type": "MainGirder",
+    "Description": "MainGirder03",
+    "Name": "MainGirder03",
+    "InActive": "",
+    "NCS": 4600,
+    "Material_Conc": 400,
+    "Material_Reif": 100,
+    "JSON_Name": "",
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "Class": "CrossSection",
+    "Type": "MainGirder",
+    "Description": "MainGirder01Cracked",
+    "Name": "MainGirder01Cracked",
+    "InActive": "",
+    "NCS": 5000,
+    "Material_Conc": 100,
+    "Material_Reif": 0,
+    "JSON_Name": "",
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "Class": "CrossSection",
+    "Type": "MainGirder",
+    "Description": "MainGirder02Cracked",
+    "Name": "MainGirder02Cracked",
+    "InActive": "",
+    "NCS": 5300,
+    "Material_Conc": 100,
+    "Material_Reif": 0,
+    "JSON_Name": "",
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "Class": "CrossSection",
+    "Type": "MainGirder",
+    "Description": "MainGirder03Cracked",
+    "Name": "MainGirder03Cracked",
+    "InActive": "",
+    "NCS": 5600,
+    "Material_Conc": 100,
+    "Material_Reif": 0,
+    "JSON_Name": "",
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "Class": "CrossSection",
+    "Type": "Bracing",
+    "Description": "X-bracing bar",
+    "Name": "X-bracing bar",
+    "InActive": "",
+    "NCS": 1000,
+    "Material_Conc": 101,
+    "Material_Reif": 0,
+    "JSON_Name": "",
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "Class": "CrossSection",
+    "Type": "Pier",
+    "Description": "PierS1",
+    "Name": "PierS1",
+    "InActive": "",
+    "NCS": 3000,
+    "Material_Conc": 101,
+    "Material_Reif": 0,
+    "JSON_Name": "200",
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "Class": "CrossSection",
+    "Type": "Pier",
+    "Description": "PierS2,3,4",
+    "Name": "PierS2,3,4",
+    "InActive": "",
+    "NCS": 3001,
+    "Material_Conc": 101,
+    "Material_Reif": 0,
+    "JSON_Name": "200",
+    "Points": {
+    },
+    "Variables": {
+    }
+  }
+]

@@ -1,0 +1,94 @@
+[
+  {
+    "Class": "ClassInfo",
+    "Type": "PackingSize",
+    "Description": "When creating JSON.json files you can choose whether each column vaues maps to a single value or a list of values",
+    "Name": "FoundationObject",
+    "InActive": "",
+    "Axis": "",
+    "CrossSection@Type": "",
+    "CrossSection@Name": "",
+    "MainStation@ObjectName": "",
+    "FoundationLevel": 0,
+    "FoundationRefPoint-Offset": "",
+    "RotationAngle": 0,
+    "InternalAxisStations": [
+      0,
+      0
+    ],
+    "AxisVariables": {
+    }
+  },
+  {
+    "Class": "FoundationObject",
+    "Type": "Slab",
+    "Description": "",
+    "Name": "FoundationT1",
+    "InActive": "",
+    "Axis": "RA",
+    "CrossSection@Type": "",
+    "CrossSection@Name": "Foundation",
+    "MainStation@ObjectName": "MASTER_Foundation",
+    "FoundationLevel": 0,
+    "FoundationRefPoint-Offset": "0.65",
+    "RotationAngle": 0,
+    "InternalAxisStations": [
+    ],
+    "AxisVariables": {
+    }
+  },
+  {
+    "Class": "FoundationObject",
+    "Type": "Slab",
+    "Description": "",
+    "Name": "FoundationT2",
+    "InActive": "",
+    "Axis": "RA",
+    "CrossSection@Type": "",
+    "CrossSection@Name": "Foundation",
+    "MainStation@ObjectName": "MASTER_Foundation",
+    "FoundationLevel": 0,
+    "FoundationRefPoint-Offset": "0.65",
+    "RotationAngle": 0,
+    "InternalAxisStations": [
+    ],
+    "AxisVariables": {
+    }
+  },
+  {
+    "Class": "FoundationObject",
+    "Type": "Slab",
+    "Description": "",
+    "Name": "FoundationT3",
+    "InActive": "",
+    "Axis": "RA",
+    "CrossSection@Type": "",
+    "CrossSection@Name": "Foundation",
+    "MainStation@ObjectName": "MASTER_Foundation",
+    "FoundationLevel": 0,
+    "FoundationRefPoint-Offset": "0.65",
+    "RotationAngle": 0,
+    "InternalAxisStations": [
+    ],
+    "AxisVariables": {
+    }
+  },
+  {
+    "Class": "FoundationObject",
+    "Type": "Slab",
+    "Description": "",
+    "Name": "FoundationT4",
+    "InActive": "",
+    "Axis": "RA",
+    "CrossSection@Type": "",
+    "CrossSection@Name": "Foundation",
+    "MainStation@ObjectName": "MASTER_Foundation",
+    "FoundationLevel": 0,
+    "FoundationRefPoint-Offset": "0.65",
+    "RotationAngle": 0,
+    "InternalAxisStations": [
+    ],
+    "AxisVariables": {
+    }
+  }
+]
