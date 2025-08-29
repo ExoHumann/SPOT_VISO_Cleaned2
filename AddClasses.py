@@ -283,9 +283,6 @@ class CrossSection:
         return self.memo("points_by_name", lambda: {p["PointName"]: p for p in (self.points or [])})
 
 
-    
-
-
 def create_axis_variables(json_data: List[Dict], mapping: Dict[str, str]) -> List[AxisVariable]:
     """
     Transform JSON data for AxisVariable using the provided mapping and create AxisVariable objects.
@@ -599,6 +596,8 @@ def create_input_for_visualisation(
                 break
 
     final_json_file_full = find_relative_file(final_json_file)
+    # NEW: fallback to the relative path so SpotLoader can join with branch folder
+    json_file_out = final_json_file_full or final_json_file
 
     # Create an axis signature to help Axis cache hits later
     def tiny_hash(arr):
@@ -607,7 +606,7 @@ def create_input_for_visualisation(
     axis_sig = (tiny_hash(stations), tiny_hash(x_coords), tiny_hash(y_coords), tiny_hash(z_coords), 'm')
 
     return {
-        "json_file": final_json_file_full,
+        "json_file": json_file_out,
         "stations_axis": stations,
         "x_coords": x_coords,
         "y_coords": y_coords,
@@ -753,6 +752,121 @@ class FoundationObject(BaseObject):
     grp_offset: List[float]
     axis_variables: List[Dict] = field(default_factory=list)
 
+@dataclass(kw_only=True)
+class MainStation(BaseObject):
+    no: str
+    class_name: str
+    type: str
+    description: str
+    name: str
+    inactive: str
+    placement_id: str
+    ref_placement_id: str
+    ref_station_offset: float
+    station_value: float
+    station_type: str
+    station_rotation_x: str
+    station_rotation_z: str
+    sofi_code: str
+
+@dataclass(kw_only=True)
+class BearingArticulation(BaseObject):
+    no: str
+    class_name: str
+    type: str
+    description: str
+    name: str
+    inactive: str
+    ref_placement_id: str
+    ref_station_offset: float
+    station_value: float
+    pier_object_name: str
+    top_cross_section_points_name: str
+    top_yoffset: float
+    top_xoffset: float
+    bot_cross_section_points_name: str
+    bot_yoffset: float
+    bot_xoffset: float
+    kx: float
+    ky: float
+    kz: float
+    rx: float
+    ry: float
+    rz: float
+    grp_offset: float
+    grp: str
+    bearing_dimensions: str
+    rotation_x: float
+    rotation_z: float
+    fixation: str
+    eval_pier_object_name: str
+    eval_station_value: float
+    eval_top_cross_section_points_name: str
+    eval_top_yoffset: float
+    eval_top_zoffset: float
+    sofi_code: str
+@dataclass(kw_only=True)
+class TwoAxisBase(BaseObject):
+    # keep BaseObject's primary axis_name for "beg" by convention
+    beg_axis_name: str = ""
+    end_axis_name: str = ""
+    beg_axis_obj: Optional[Axis] = None
+    end_axis_obj: Optional[Axis] = None
+
+    def set_axes(self, axis_data: List[Dict]):
+        """Resolve beg_axis_obj/end_axis_obj using the same fast index used by BaseObject.set_axis()."""
+        if axis_data is None:
+            return
+        axis_map = mapping.get(Axis, {})
+        idx = axis_map.get("_axis_index")
+        if idx is None:
+            idx = _build_axis_index(axis_data, axis_map)
+            axis_map["_axis_index"] = idx
+            mapping[Axis] = axis_map
+
+        def resolve(name: str) -> Optional[Axis]:
+            if not name:
+                return None
+            d = idx.get(name) or idx.get(str(name)) or idx.get(str(name).strip()) or idx.get(str(name).strip().lower())
+            if not d:
+                return None
+            stations = [float(s) for s in d.get(axis_map.get('stations', 'StaionValue'), [])]
+            x_coords = [float(x) for x in d.get(axis_map.get('x_coords', 'CurvCoorX'), [])]
+            y_coords = [float(y) for y in d.get(axis_map.get('y_coords', 'CurvCoorY'), [])]
+            z_coords = [float(z) for z in d.get(axis_map.get('z_coords', 'CurvCoorZ'), [])]
+            return Axis(stations=stations, x_coords=x_coords, y_coords=y_coords, z_coords=z_coords)
+
+        self.beg_axis_obj = resolve(self.beg_axis_name)
+        self.end_axis_obj = resolve(self.end_axis_name)
+
+@dataclass(kw_only=True)
+class SecondaryObject(TwoAxisBase):
+    no: str
+    class_name: str
+    type: str
+    description: str
+    name: str
+    inactive: str
+
+    beg_placement_id: str
+    beg_placement_description: str
+    beg_ref_placement_id: str
+    beg_ref_station_offset: float
+    beg_station_value: float
+    beg_cross_section_points_name: str
+    beg_ncs: int
+
+    end_placement_id: str
+    end_placement_description: str
+    end_ref_placement_id: str
+    end_ref_station_offset: float
+    end_station_value: float
+    end_cross_section_points_name: str
+    end_ncs: int
+
+    grp_offset: float
+    grp: str
+
 
 # Updated mapping to include CrossSection
 mapping = {
@@ -895,6 +1009,96 @@ mapping = {
         "SofiCode": "sofi_code",
         "Points": "points",
         "Variables": "variables"
+    },
+
+     MainStation: {
+        "No": "no",
+        "Class": "class_name",
+        "Type": "type",
+        "Description": "description",
+        "Name": "name",
+        "InActive": "inactive",
+        "Axis@Name": "axis_name",
+        "PlacementId": "placement_id",
+        "Ref-PlacementId": "ref_placement_id",
+        "Ref-StationOffset": "ref_station_offset",
+        "StationValue": "station_value",
+        "StationType": "station_type",
+        "StationRotationX": "station_rotation_x",
+        "StationRotationZ": "station_rotation_z",
+        "SOFi_Code": "sofi_code",
+    },
+
+    BearingArticulation: {
+        "No": "no",
+        "Class": "class_name",
+        "Type": "type",
+        "Description": "description",
+        "Name": "name",
+        "InActive": "inactive",
+        "Axis@Name": "axis_name",
+        "Ref-PlacementId": "ref_placement_id",
+        "Ref-StationOffset": "ref_station_offset",
+        "StationValue": "station_value",
+        "PierObject@Name": "pier_object_name",
+        "TopCrossSection@PointsName": "top_cross_section_points_name",
+        "Top-YOffset": "top_yoffset",
+        "Top-XOffset": "top_xoffset",
+        "BotCrossSection@PointsName": "bot_cross_section_points_name",
+        "Bot-YOffset": "bot_yoffset",
+        "Bot-XOffset": "bot_xoffset",
+        "Kx": "kx",
+        "Ky": "ky",
+        "Kz": "kz",
+        "Rx": "rx",
+        "Ry": "ry",
+        "Rz": "rz",
+        "GRP-Offset": "grp_offset",
+        "GRP": "grp",
+        "BearingDimensions": "bearing_dimensions",
+        "RotationX": "rotation_x",
+        "RotationZ": "rotation_z",
+        "Fixation": "fixation",
+        "Eval-PierObject@Name": "eval_pier_object_name",
+        "Eval-StationValue": "eval_station_value",
+        "Eval-TopCrossSection@PointsName": "eval_top_cross_section_points_name",
+        "Eval-Top-YOffset": "eval_top_yoffset",
+        "Eval-Top-ZOffset": "eval_top_zoffset",
+        "SOFi_Code": "sofi_code",
+    },
+
+    SecondaryObject: {
+        "No": "no",
+        "Class": "class_name",
+        "Type": "type",
+        "Description": "description",
+        "Name": "name",
+        "InActive": "inactive",
+
+        # axes (two)
+        "Beg-Axis@Name": "beg_axis_name",
+        "End-Axis@Name": "end_axis_name",
+
+        # beg side
+        "Beg-PlacementId": "beg_placement_id",
+        "Beg-PlacementDescription": "beg_placement_description",
+        "Beg-Ref-PlacementId": "beg_ref_placement_id",
+        "Beg-Ref-StationOffset": "beg_ref_station_offset",
+        "Beg-StationValue": "beg_station_value",
+        "Beg-CrossSection@PointsName": "beg_cross_section_points_name",
+        "Beg-NCS": "beg_ncs",
+
+        # end side
+        "End-PlacementId": "end_placement_id",
+        "End-PlacementDescription": "end_placement_description",
+        "End-Ref-PlacementId": "end_ref_placement_id",
+        "End-Ref-StationOffset": "end_ref_station_offset",
+        "End-StationValue": "end_station_value",
+        "End-CrossSection@PointsName": "end_cross_section_points_name",
+        "End-NCS": "end_ncs",
+
+        "GRP-Offset": "grp_offset",
+        "GRP": "grp",
     }
 }
 

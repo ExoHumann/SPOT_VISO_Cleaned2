@@ -281,7 +281,7 @@ def loops_idx_cached(json_data, ids):
 # =========================
 # ReferenceFrame (scalar)
 # =========================
-
+#TODO Crosssection class move
 class ReferenceFrame:
     def __init__(self, reference_type, reference=None, points=None, variables=None):
         self.reference_type = reference_type
@@ -739,38 +739,58 @@ function pretty(x){ try { return JSON.stringify(x, null, 2); } catch(e){ return 
 
 function toPanelPayload(pt){
   if (!pt) return null;
-  if (pt.customdata !== undefined) return pt.customdata; // we filled this in Python
+  if (pt.customdata !== undefined) return pt.customdata;
   return { trace: (pt.fullData && pt.fullData.name) || '(unknown)', x: pt.x, y: pt.y, z: pt.z };
 }
 
-var plotDiv = document.getElementById('plot');
-var figure = {{ fig | tojson }};
+function bootPlot(){
+  var plotDiv = document.getElementById('plot');
+  var figure  = {{ fig | tojson }};
+  Plotly.newPlot(plotDiv, figure.data, figure.layout, {responsive:true}).then(function(){
+    var panel = document.getElementById('json-output');
+    var last = null;
 
-Plotly.newPlot(plotDiv, figure.data, figure.layout, {responsive:true}).then(function(){
-  var panel = document.getElementById('json-output');
-  var last = null;
+    function updateFrom(evt){
+      if (!evt || !evt.points || !evt.points.length) return;
+      var payload = toPanelPayload(evt.points[0]);
+      if (payload === null || payload === undefined) return;
+      last = payload;
+      panel.textContent = isObject(payload) ? pretty(payload) : String(payload);
+    }
+    plotDiv.on('plotly_hover',  updateFrom);
+    plotDiv.on('plotly_click',  updateFrom);
+    plotDiv.on('plotly_unhover', function(){
+      // keep last selection; clear if you prefer:
+      // panel.textContent = "No item selected.";
+    });
+  }).catch(function(err){
+    console.error(err);
+    document.getElementById('json-output').textContent = "Plotly error. See console.";
+  });
+}
 
-  function updateFrom(evt){
-    if (!evt || !evt.points || !evt.points.length) return;
-    var payload = toPanelPayload(evt.points[0]);
-    if (payload === null || payload === undefined) return;
-    last = payload;
-    panel.textContent = isObject(payload) ? pretty(payload) : String(payload);
+// Try local -> internal -> CDN
+(function ensurePlotly(){
+  if (window.Plotly) return bootPlot();
+
+  function load(src, onload, onerror){
+    var s = document.createElement('script');
+    s.src = src; s.async = false;
+    s.onload = onload; s.onerror = onerror;
+    document.head.appendChild(s);
   }
 
-  plotDiv.on('plotly_hover', updateFrom);  // magnetic hover
-  plotDiv.on('plotly_click', updateFrom);  // also allow click
-
-  plotDiv.on('plotly_unhover', function(){
-    // Keep last hovered item visible (magnetic behavior).
-    // If you prefer to clear on unhover, uncomment the next line:
-    // panel.textContent = "No item selected.";
+  load('resources/plotly-latest.min.js', bootPlot, function(){
+    load('_internal/resources/plotly-latest.min.js', bootPlot, function(){
+      load('https://cdn.plot.ly/plotly-2.27.0.min.js', bootPlot, function(){
+        document.getElementById('json-output').textContent =
+          "Could not load Plotly (local or CDN).";
+      });
+    });
   });
-}).catch(function(err){
-  console.error(err);
-  document.getElementById('json-output').textContent = "Plotly error. See console.";
-});
+})();
 </script>
+
 </body>
 </html>
         """
@@ -782,7 +802,9 @@ Plotly.newPlot(plotDiv, figure.data, figure.layout, {responsive:true}).then(func
             with open(html_file, 'w', encoding='utf-8') as f:
                 f.write(final_html)
             print(f"Saved 3D plot with metadata panel to {html_file}")
-            webbrowser.open('file://' + os.path.abspath(html_file))
+            url = 'file:\\' + os.path.abspath(html_file)
+            print(f"Opening {url}")
+            webbrowser.open(url)             # <— make sure this line is complete
         except Exception as e:
             print(f"Error saving {html_file}: {e}")
 
@@ -1285,7 +1307,7 @@ if __name__ == "__main__":
     from Axis import Axis
 
     from spot_loader import SpotLoader
-
+    #MASTER_GIT = r"C:\Git\SPOT_VISO_krzys\SPOT_VISO\GIT"
     MASTER_GIT = r"C:\RCZ\krzysio\SPOT_KRZYSIO\GIT"
     BRANCH     = "MAIN"   # or any other subfolder
     COND_PIER_FOUNDATION = False  # your flag

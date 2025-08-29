@@ -14,7 +14,7 @@ except Exception:
 from SPOT_Filters import get_json_files, load_json_objects   # folder scan + bulk load  :contentReference[oaicite:6]{index=6}
 from AddClasses import (
     load_from_json, mapping,
-    CrossSection, DeckObject, BaseObject  # core
+    CrossSection, DeckObject, BaseObject, from_dict  # core
 )
 # Pier/Foundation are optional
 try:
@@ -37,6 +37,16 @@ def _read_json(path: str):
             return _fastjson.loads(f.read())
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
+    
+def _as_dicts(rows):
+    """Accept dicts or SpotJsonObject; return list[dict]."""
+    out = []
+    for r in rows or []:
+        if hasattr(r, "to_dict"):
+            out.append(r.to_dict())
+        elif isinstance(r, dict):
+            out.append(r)
+    return out
 
 
 class SpotLoader:
@@ -123,8 +133,13 @@ class SpotLoader:
 
         # Cross-sections
         cross_sections, _ = load_from_json(CrossSection, cs_data, mapping)
+
         # Decks
-        deck_objects, deck_filtered = load_from_json(DeckObject, deck_data, mapping, axis_data=axis_data)
+        deck_rows = self._by_class.get("DeckObject", [])
+        deck_objects = [from_dict(DeckObject, r, mapping, axis_data) for r in deck_rows]
+        deck_filtered = deck_rows  # you already filtered ClassInfo upstream
+
+        #deck_objects, deck_filtered = load_from_json(DeckObject, deck_data, mapping, axis_data=axis_data)
 
         # Post-create pass: keep your current pattern
         for i, obj in enumerate(deck_objects):
@@ -160,9 +175,9 @@ class SpotLoader:
 
                     norm_pier_data.append(r)
 
-                pier_objects, pier_filtered = load_from_json(
-                    PierObject, norm_pier_data, mapping, axis_data=axis_data
-                )
+                # pier_objects, pier_filtered = load_from_json(
+                #     PierObject, norm_pier_data, mapping, axis_data=axis_data
+                # )
                 pier_objects, pier_filtered = load_from_json(PierObject, pier_data, mapping, axis_data=axis_data)
                 for i, pobj in enumerate(pier_objects or []):
                     if hasattr(pobj, "axis_variables") and isinstance(pobj.axis_variables, list):
