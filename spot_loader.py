@@ -1,8 +1,9 @@
 # spot_loader.py
 from __future__ import annotations
-
 import os, json
 from typing import Dict, List, Tuple, Optional, Any
+
+
 
 # Very fast JSON if present
 try:
@@ -12,19 +13,32 @@ except Exception:
 
 # Reuse your helpers & models
 from SPOT_Filters import get_json_files, load_json_objects   # folder scan + bulk load  :contentReference[oaicite:6]{index=6}
-from AddClasses import (
-    load_from_json, mapping,
-    CrossSection, DeckObject, BaseObject, from_dict  # core
-)
-# Pier/Foundation are optional
-try:
-    from AddClasses import PierObject, FoundationObject
-    _has_pier_found = True
-except Exception:
-    PierObject = FoundationObject = None
-    _has_pier_found = False
+from models import Axis, MainStation, CrossSection, DeckObject, PierObject, FoundationObject, VisoContext, AxisVariable, load_from_json, build_viso_object
+from models.mapping import mapping as MAP
 
-from AxisVariables import AxisVariable  # used to map axis variables  :contentReference[oaicite:7]{index=7}
+
+# from AddClasses import (
+#     load_from_json, mapping,
+#     CrossSection, DeckObject,
+#     VisoContext, build_viso_object, BaseObject, MainStation, from_dict
+# )
+
+
+def _is_axis_type(t):
+    try:
+        return issubclass(t, Axis)
+    except Exception:
+        # fallback: name-only match if duplicated modules
+        return getattr(t, '__name__', '') == 'Axis'
+# Pier/Foundation optional
+# try:
+#     from AddClasses import PierObject, FoundationObject
+#     _has_pier_found = True
+# except Exception:
+#     PierObject = FoundationObject = None
+#     _has_pier_found = False
+_has_pier_found = True
+#from AxisVariables import AxisVariable  # used to map axis variables  :contentReference[oaicite:7]{index=7}
 
 
 def _read_json(path: str):
@@ -117,151 +131,254 @@ class SpotLoader:
 
     # -------- materialize domain objects --------------------------------------
 
-    def build_domain_objects(self) -> Tuple[
-        List[dict],        # axis_data (list[dict])
-        List[CrossSection],
-        List[DeckObject],
-        List[dict],        # filtered deck (raw)
-        Optional[List[Any]], Optional[List[Any]]  # pier, foundation (if enabled/available)
-    ]:
+    def context(self) -> VisoContext:
         """
-        Materialize your dataclasses using your current `load_from_json`.
+        Build a reusable context (Axes + CrossSections [+ MainStations later]).
         """
-        axis_data: List[dict] = self._by_class.get("Axis", [])
-        cs_data:   List[dict] = self._by_class.get("CrossSection", [])
-        deck_data: List[dict] = self._by_class.get("DeckObject", [])
+        axis_rows = self._by_class.get("Axis", [])
+        cross_rows = self._by_class.get("CrossSection", [])
+        cross_sections, _ = load_from_json(CrossSection, cross_rows, MAP, axis_data=axis_rows)
+        return VisoContext.from_json(axis_rows, cross_sections, mainstations=None, mapping_cfg=MAP)
+    
+    def get_ctx(self) -> VisoContext:
+        return getattr(self, "ctx", None)
 
-        # Cross-sections
-        cross_sections, _ = load_from_json(CrossSection, cs_data, mapping)
+    def get_axis(self, name: str):
+        return self.ctx.get_axis(name) if self.get_ctx() else None
 
-        # Decks
+    def get_cross_section(self, ncs: int):
+        return self.ctx.get_cross_section(ncs) if self.get_ctx() else None
+
+    def get_mainstation(self, name: str):
+        return self.ctx.get_mainstation(name) if self.get_ctx() else None
+
+    def objects(self, clsname: str | None = None):
+        return self.ctx.all_objects(clsname) if self.get_ctx() else []
+
+    def objects_for_axis(self, axis_name: str, clsname: str | None = None):
+        return self.ctx.objects_for_axis(axis_name, clsname) if self.get_ctx() else []
+
+    def get_object_by_name(self, name: str):
+        return self.ctx.get_object_by_name(name) if self.get_ctx() else None
+
+    def get_object_by_id(self, oid):
+        return self.ctx.get_object_by_id(oid) if self.get_ctx() else None
+
+    def build_domain_objects(self):
+        """
+        Your current path that materializes domain objects.
+        (Axis rows are left as dicts; objects use load_from_json.)
+        """
+        axis_rows = self._by_class.get("Axis", [])
+        cs_rows   = self._by_class.get("CrossSection", [])
         deck_rows = self._by_class.get("DeckObject", [])
-        deck_objects = [from_dict(DeckObject, r, mapping, axis_data) for r in deck_rows]
-        deck_filtered = deck_rows  # you already filtered ClassInfo upstream
+        pier_rows = self._by_class.get("PierObject", [])
+        fnd_rows  = self._by_class.get("FoundationObject", [])
 
-        #deck_objects, deck_filtered = load_from_json(DeckObject, deck_data, mapping, axis_data=axis_data)
+        cross_sections, _ = load_from_json(CrossSection, cs_rows, MAP, axis_data=axis_rows)
 
-        # Post-create pass: keep your current pattern
-        for i, obj in enumerate(deck_objects):
-            # axis vars
-            if hasattr(obj, "axis_variables") and isinstance(obj.axis_variables, list):
-                obj.set_axis_variables(deck_filtered[i].get("AxisVariables", []), mapping.get(AxisVariable, {}))
-            # axis
-            if hasattr(obj, "axis_name") and axis_data:
-                obj.set_axis(obj.axis_name, axis_data)
+        deck_objects, deck_filtered = load_from_json(DeckObject, deck_rows, MAP, axis_data=axis_rows)
+        for i, dobj in enumerate(deck_objects or []):
+            if hasattr(dobj, "axis_variables"):
+                dobj.set_axis_variables(deck_filtered[i].get("AxisVariables", []), MAP.get(AxisVariable, {}))
+            if hasattr(dobj, "axis_name") and axis_rows:
+                dobj.set_axis(dobj.axis_name, axis_rows)
 
-        pier_objects = foundation_objects = None
-        if self.cond_pier_foundation and _has_pier_found:
-            # Load only if available & requested
-            pier_data   = self._by_class.get("PierObject", [])
-            found_data  = self._by_class.get("FoundationObject", [])
-
-            if pier_data:
-
-                # --- normalize pier rows (singular/plural & spelling variants) ---
-                norm_pier_data = []
-                for row in pier_data:
-                    r = dict(row)
-
-                    # singular vs plural “Point(s)@Name”
-                    if "Top-CrossSection_Point@Name" in r and "Top-CrossSection_Points@Name" not in r:
-                        r["Top-CrossSection_Points@Name"] = r["Top-CrossSection_Point@Name"]
-                    if "Bot-CrossSection_Point@Name" in r and "Bot-CrossSection_Points@Name" not in r:
-                        r["Bot-CrossSection_Points@Name"]  = r["Bot-CrossSection_Point@Name"]
-
-                    # StationValue (with t) -> StaionValue (current mapping)
-                    if "Internal@StationValue" in r and "Internal@StaionValue" not in r:
-                        r["Internal@StaionValue"] = r["Internal@StationValue"]
-
-                    norm_pier_data.append(r)
-
-                # pier_objects, pier_filtered = load_from_json(
-                #     PierObject, norm_pier_data, mapping, axis_data=axis_data
-                # )
-                pier_objects, pier_filtered = load_from_json(PierObject, pier_data, mapping, axis_data=axis_data)
+        pier_objects = foundation_objects = []
+        if _has_pier_found:
+            if pier_rows:
+                pier_objects, pier_filtered = load_from_json(PierObject, pier_rows, MAP, axis_data=axis_rows)
                 for i, pobj in enumerate(pier_objects or []):
-                    if hasattr(pobj, "axis_variables") and isinstance(pobj.axis_variables, list):
-                        pobj.set_axis_variables(pier_filtered[i].get("AxisVariables", []), mapping.get(AxisVariable, {}))
-                    if hasattr(pobj, "axis_name") and axis_data:
-                        pobj.set_axis(pobj.axis_name, axis_data)
-
-            if found_data:
-                foundation_objects, found_filtered = load_from_json(FoundationObject, found_data, mapping, axis_data=axis_data)
+                    if hasattr(pobj, "axis_variables"):
+                        pobj.set_axis_variables(pier_filtered[i].get("AxisVariables", []), MAP.get(AxisVariable, {}))
+                    if hasattr(pobj, "axis_name") and axis_rows:
+                        pobj.set_axis(pobj.axis_name, axis_rows)
+            if fnd_rows:
+                foundation_objects, found_filtered = load_from_json(FoundationObject, fnd_rows, MAP, axis_data=axis_rows)
                 for i, fobj in enumerate(foundation_objects or []):
-                    if hasattr(fobj, "axis_variables") and isinstance(fobj.axis_variables, list):
-                        fobj.set_axis_variables(found_filtered[i].get("AxisVariables", []), mapping.get(AxisVariable, {}))
-                    if hasattr(fobj, "axis_name") and axis_data:
-                        fobj.set_axis(fobj.axis_name, axis_data)
+                    if hasattr(fobj, "axis_variables"):
+                        fobj.set_axis_variables(found_filtered[i].get("AxisVariables", []), MAP.get(AxisVariable, {}))
+                    if hasattr(fobj, "axis_name") and axis_rows:
+                        fobj.set_axis(fobj.axis_name, axis_rows)
 
-        return axis_data, cross_sections, deck_objects, deck_filtered, pier_objects, foundation_objects
+        return axis_rows, cross_sections, deck_objects, deck_filtered, pier_objects, foundation_objects
 
-    # -------- assemble vis -----------------------------------------------------
-
-    def build_vis(
+    def build_vis_components(
         self,
         *,
         attach_section_json: bool = True,
-    ) -> Tuple[List[dict], List[object]]:
+        verbose: bool = True,
+        axis_override=None,             # optional: list[dict] raw Axis rows to use instead of CSV rows
+        mainstations_override=None,     # optional: list[MainStation] objects (or raw rows; see below)
+        cross_sections_override=None    # optional: list[CrossSection] objects (or raw rows; see below)
+    ):
         """
-        Returns (vis_data_all, vis_objs_all).
-        Will attach parsed `json_data` to each vis (cached by file) if enabled.
+        Component-driven build:
+        1) Create a VisoContext from Axis/CrossSection/MainStation collections.
+        2) Build Deck, Pier, Foundation objects by injecting the context
+            (so you can swap Axis/MainStations/CrossSections if desired).
+        3) Populate self.vis_data and self.vis_objs in the same shape as the old build_vis().
+
+        Notes:
+        - We DO NOT write or mutate any JSON files; when attach_section_json is True,
+            we just read the CrossSection JSON once and attach it to the vis row in memory.
+        - axis_override is expected to be a list of raw JSON rows (dicts). If not provided,
+            we use the Axis rows we already loaded from CSV/JSON.
         """
-        axis_data, cross_sections, deck_objects, deck_filtered, pier_objects, foundation_objects = \
-            self.build_domain_objects()
+        if not self._by_class:
+            self.group_by_class()
 
-        # index CrossSection by NCS for fast json file lookup
-        cs_by_ncs: Dict[str, CrossSection] = {}
-        for cs in cross_sections:
-            ncs = getattr(cs, "ncs", None)
-            if ncs is not None:
-                cs_by_ncs[str(ncs)] = cs
+        # ---- 1) Collect core component rows ----
+        axis_rows = self._by_class.get('Axis', []) or []
+        cs_rows   = self._by_class.get('CrossSection', []) or []
+        ms_rows   = self._by_class.get('MainStation', []) or []
 
-        vis_data_all: List[dict] = []
-        vis_objs_all: List[object] = []
-        json_cache: Dict[str, Optional[dict]] = {}
+        # If an override is provided, prefer it when it looks like raw dict rows
+        axis_rows_for_ctx = axis_override if isinstance(axis_override, list) and axis_override and isinstance(axis_override[0], dict) else axis_rows
 
-        def _attach_json_data(vis_row: dict):
-            jf = vis_row.get("json_file")
-            if not (attach_section_json and jf):
-                vis_row["json_data"] = None
-                return
-            jkey = os.path.abspath(os.path.join(self.branch_folder, jf)) if not os.path.isabs(jf) else jf
-            if jkey not in json_cache:
-                try:
-                    json_cache[jkey] = _read_json(jkey)
-                except Exception as e:
-                    print(f"[SpotLoader] warn: cannot read {jkey}: {e}")
-                    json_cache[jkey] = None
-            vis_row["json_data"] = json_cache[jkey]
+        # Parse CrossSections/MainStations into objects (keep raw axis rows; VisoContext will build Axis objects)
+        if cross_sections_override is None:
+            cs_objs, _ = load_from_json(CrossSection, cs_rows, MAP, axis_data=axis_rows_for_ctx)
+        else:
+            # Allow passing either objects or raw rows
+            if isinstance(cross_sections_override, list) and cross_sections_override and isinstance(cross_sections_override[0], dict):
+                cs_objs, _ = load_from_json(CrossSection, cross_sections_override, MAP, axis_data=axis_rows_for_ctx)
+            else:
+                cs_objs = cross_sections_override
 
-        # ---- Decks
-        for i, obj in enumerate(deck_objects):
-            try:
-                vis = obj.get_input_for_visualisation(
-                    axis_data=axis_data,
-                    cross_section_objects=cross_sections,
-                    json_file_path=None,  # let the object find via NCS->CrossSection.JSON_name
-                )
-                _attach_json_data(vis)
-                vis_data_all.append(vis)
-                vis_objs_all.append(obj)
-            except Exception as e:
-                print(f"[SpotLoader] skip Deck {getattr(obj,'name','?')}: {e}")
+        if mainstations_override is None:
+            ms_objs, _ = load_from_json(MainStation, ms_rows, MAP, axis_data=axis_rows_for_ctx)
+        else:
+            if isinstance(mainstations_override, list) and mainstations_override and isinstance(mainstations_override[0], dict):
+                ms_objs, _ = load_from_json(MainStation, mainstations_override, MAP, axis_data=axis_rows_for_ctx)
+            else:
+                ms_objs = mainstations_override
 
-        # ---- Optional: Piers / Foundations
-        if self.cond_pier_foundation and _has_pier_found:
-            for coll in (pier_objects or []), (foundation_objects or []):
-                for obj in coll:
-                    try:
-                        vis = obj.get_input_for_visualisation(
-                            axis_data=axis_data,
-                            cross_section_objects=cross_sections,
-                            json_file_path=None,
-                        )
-                        _attach_json_data(vis)
-                        vis_data_all.append(vis)
-                        vis_objs_all.append(obj)
-                    except Exception as e:
-                        print(f"[SpotLoader] skip {obj.__class__.__name__} {getattr(obj,'name','?')}: {e}")
+        # ---- 2) Build a context (indexes by name/NCS) from RAW axis rows + parsed CS/MS ----
+        # VisoContext.from_json expects raw Axis/MainStation/CrossSection rows OR lists of objects,
+        # but it is robust in your codebase to build the lookups we need.
+        ctx = VisoContext.from_json(
+            axis_rows_for_ctx,
+            cs_objs,
+            ms_objs,
+            mapping_cfg=MAP
+        )
 
-        return vis_data_all, vis_objs_all
+        # ---- 3) Parse Viso objects (Deck / Pier / Foundation) into dataclasses ----
+        deck_rows = self._by_class.get('DeckObject', []) or []
+        pier_rows = self._by_class.get('PierObject', []) or []
+        fnd_rows  = self._by_class.get('FoundationObject', []) or []
+
+        deck_objs, _ = load_from_json(DeckObject, deck_rows, MAP, axis_data=axis_rows_for_ctx)
+        pier_objs, _ = load_from_json(PierObject,  pier_rows, MAP, axis_data=axis_rows_for_ctx)
+        fnd_objs,  _ = load_from_json(FoundationObject, fnd_rows, MAP, axis_data=axis_rows_for_ctx)
+
+        axis_var_map = MAP.get(AxisVariable, {})
+        ctx.add_objects(deck_objs, pier_objs, fnd_objs, axis_var_map=axis_var_map)
+        self.ctx = ctx
+
+
+        # ---- 4) Optional utility: attach CrossSection JSON once per vis row ----
+        # def _attach_json_data(vis_row: dict) -> dict:
+        #     jf = vis_row.get('json_file')
+        #     if not jf:
+        #         return vis_row
+        #     try:
+        #         with open(jf, 'r', encoding='utf-8') as f:
+        #             vis_row['json_data'] = json.load(f)
+        #     except Exception as e:
+        #         if verbose:
+        #             print(f"[SpotLoader] WARN: cannot open section JSON: {jf} ({e})")
+        #     return vis_row
+
+        def _attach_json_data(row: dict, branch_root: str):
+            jf = (row.get("json_file") or "").strip()
+            if not jf or jf.lower().startswith("no master"):
+                row["json_data"] = None
+                return row
+
+            import os, json
+            # if relative, join with branch
+            candidate = jf
+            if not os.path.isabs(candidate):
+                candidate = os.path.normpath(os.path.join(branch_root, candidate))
+
+            if os.path.exists(candidate):
+                with open(candidate, "r", encoding="utf-8") as f:
+                    row["json_data"] = json.load(f)
+            else:
+                # don't drop the row if json is missing; just leave json_data=None
+                row["json_data"] = None
+            return row
+
+        # ---- 5) Build vis rows via dependency injection ----
+        vis_data_all: list[dict] = []
+        vis_objs_all:  list      = []
+
+        # Helper to pick an axis for an object: named axis from ctx, else any/default
+        def _axis_for(obj):
+            # Try common attribute names; VisoContext.get_axis() handles case/spacing
+            name = getattr(obj, "axis_name", None) or getattr(obj, "object_axis_name", None)
+            ax = ctx.get_axis(name) if name else None
+            if ax is not None:
+                return ax
+            # last-resort fallback: first axis in the context
+            return next(iter(ctx.axes_by_name.values()), None)
+
+        # Keep ordering: Decks → Piers → Foundation (like your old build)
+        for obj in deck_objs:
+            vis_row = build_viso_object(
+                obj,
+                ctx,
+                axis=_axis_for(obj),
+                mainstations=ctx.mainstations_by_name,
+                cross_sections_override=list(ctx.crosssec_by_ncs.values()),  # lets create_input_for_visualisation resolve by NCS
+                mapping_cfg=MAP
+            )
+            if attach_section_json:
+                vis_row = _attach_json_data(vis_row, "MASTER_SECTION")
+            vis_data_all.append(vis_row)
+            vis_objs_all.append(obj)
+
+        for obj in pier_objs:
+            vis_row = build_viso_object(
+                obj,
+                ctx,
+                axis=_axis_for(obj),
+                mainstations=ctx.mainstations_by_name,
+                cross_sections_override=list(ctx.crosssec_by_ncs.values()),
+                mapping_cfg=MAP
+            )
+            if attach_section_json:
+                vis_row = _attach_json_data(vis_row, "MASTER_SECTION")
+            vis_data_all.append(vis_row)
+            vis_objs_all.append(obj)
+
+        for obj in fnd_objs:
+            vis_row = build_viso_object(
+                obj,
+                ctx,
+                axis=_axis_for(obj),
+                mainstations=ctx.mainstations_by_name,
+                cross_sections_override=list(ctx.crosssec_by_ncs.values()),
+                mapping_cfg=MAP
+            )
+            if attach_section_json:
+                vis_row = _attach_json_data(vis_row, "MASTER_SECTION")
+            vis_data_all.append(vis_row)
+            vis_objs_all.append(obj)
+
+        # ---- 6) Preserve fields expected by main.py ----
+        self._deck_objects       = deck_objs
+        self._pier_objects       = pier_objs
+        self._foundation_objects = fnd_objs
+
+        self.vis_data = vis_data_all
+        self.vis_objs = vis_objs_all
+
+        if verbose:
+            print(f"[Vis] rows: {len(self.vis_data)}")
+            for r in self.vis_data:
+                print(f"  - {r.get('name')} json_file= {r.get('json_file')} json_data= {bool(r.get('json_data'))}")
+
+        return self
