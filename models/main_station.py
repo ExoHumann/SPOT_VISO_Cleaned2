@@ -17,6 +17,8 @@ class MainStation(BaseObject):
     ref_station_offset: float
     station_value: float
     station_type: str
-    station_rotation_x: str
-    station_rotation_z: str
+    station_rotation_x: float = 0.0
+    station_rotation_z: float = 0.0
     sofi_code: str = field(default="", kw_only=True)
+    bearing_dimensions: str | None = None
+    

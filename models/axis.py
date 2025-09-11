@@ -1,52 +1,103 @@
 # models/axis.py
+from __future__ import annotations
+
 import math
-import os
-import webbrowser
-from functools import lru_cache
+import logging
 from typing import List, Optional, Tuple
 
 import numpy as np
-import plotly.graph_objects as go
 
-import logging
 logger = logging.getLogger(__name__)
 
+
+# ---------- small numeric helpers (module-level) ----------
+
+def _normalize_rows(a: np.ndarray, eps: float = 1e-12) -> np.ndarray:
+    """
+    Normalize each row vector; guard against zero-length rows.
+    """
+    a = np.asarray(a, float)
+    n = np.linalg.norm(a, axis=-1, keepdims=True)
+    n = np.where(n < eps, 1.0, n)
+    return a / n
+
+
+def _rodrigues(axis: np.ndarray, theta: float) -> np.ndarray:
+    """
+    3x3 rotation matrix rotating around 'axis' (shape (3,)) by angle 'theta' (radians).
+    'axis' does not need to be unit (we normalize internally).
+    """
+    ax = np.asarray(axis, float)
+    ax = ax / (np.linalg.norm(ax) + 1e-12)
+    K = np.array([[0, -ax[2], ax[1]],
+                  [ax[2], 0, -ax[0]],
+                  [-ax[1], ax[0], 0]], dtype=float)
+    I = np.eye(3, dtype=float)
+    return I + math.sin(theta) * K + (1.0 - math.cos(theta)) * (K @ K)
+
+
+# ---------- Axis class (single embedding path) ----------
+
 class Axis:
-    
+    """
+    Geometric axis sampled by stations; units stored internally as millimeters.
+
+    Provides:
+      - `get_position_at_station(station_mm)` -> (x,y,z) in mm
+      - `_positions_and_tangents(stations_mm)` -> (P,T) where P:(N,3), T:(N,3) unit
+      - `parallel_transport_frames(stations_mm)` -> (N,B) minimal-twist normals/binormals
+      - `embed_section_points_world(stations_mm, yz_points_mm, ...)` -> (N,M,3) world coords
+
+    Notes:
+      * All public inputs/outputs are in **mm** (except rotation_deg).
+      * `yz_points_mm` are local section coordinates (Y,Z) per named point.
+      * Optional `rotation_deg` applies an in-plane rotation inside each local YZ plane.
+    """
+
     def __init__(
         self,
         stations: Optional[List[float]] = None,
         x_coords: Optional[List[float]] = None,
         y_coords: Optional[List[float]] = None,
         z_coords: Optional[List[float]] = None,
-        units: str = 'm',
+        units: str = "m",
     ):
         if any(v is None for v in (stations, x_coords, y_coords, z_coords)):
             raise TypeError("Axis requires stations and x/y/z coords.")
+
         s = np.asarray(stations, dtype=float)
         x = np.asarray(x_coords, dtype=float)
         y = np.asarray(y_coords, dtype=float)
         z = np.asarray(z_coords, dtype=float)
         if not (len(s) == len(x) == len(y) == len(z)):
-            raise ValueError("Array lengths differ.")
-        factor = 1.0 if units.lower() == 'mm' else 1000.0
+            raise ValueError("Axis: stations, x, y, z must have the same length.")
+
+        # Convert to mm; sort by station
+        factor = 1.0 if units.lower() == "mm" else 1000.0
         s_mm = s * factor
         x_mm = x * factor
         y_mm = y * factor
         z_mm = z * factor
         order = np.argsort(s_mm)
+
         self.stations = s_mm[order]
         self.x_coords = x_mm[order]
         self.y_coords = y_mm[order]
         self.z_coords = z_mm[order]
+
         self.validate()
 
-    def validate(self):
-        """Validate axis data."""
-        if len(self.stations) < 2:
-            raise ValueError("Axis requires at least 2 points.")
+    # ----- basic introspection -----
 
-    def __len__(self):
+    def validate(self) -> None:
+        """Minimal validation of axis data."""
+        if len(self.stations) < 2:
+            raise ValueError("Axis requires at least 2 sample points.")
+        # Stations are already sorted in __init__; warn on duplicates (flat segments).
+        if np.any(np.diff(self.stations) == 0.0):
+            logger.warning("Axis: duplicate station values detected; tangents may be undefined locally.")
+
+    def __len__(self) -> int:
         return len(self.stations)
 
     def __repr__(self) -> str:
@@ -54,389 +105,211 @@ class Axis:
         rng = (float(self.stations[0]), float(self.stations[-1])) if n else (None, None)
         return f"Axis(n={n}, stations_mm=[{rng[0]}, {rng[1]}])"
     
-    @lru_cache(maxsize=64)
-    def frames_for_stations(self, stations_mm_tuple):
-        stations_mm = np.asarray(stations_mm_tuple, float)
-        s = np.asarray(self.stations, float)
-        x = np.asarray(self.x_coords, float)
-        y = np.asarray(self.y_coords, float)
-        z = np.asarray(self.z_coords, float)
-        Ax = np.interp(stations_mm, s, x)
-        Ay = np.interp(stations_mm, s, y)
-        Az = np.interp(stations_mm, s, z)
-        idx = np.searchsorted(s, stations_mm, side='right') - 1
-        idx = np.clip(idx, 0, len(s) - 2)
-        dx = x[idx + 1] - x[idx]; dy = y[idx + 1] - y[idx]; dz = z[idx + 1] - z[idx]
-        L = np.sqrt(dx*dx + dy*dy + dz*dz); L[L == 0.0] = 1.0
-        U = np.stack([dx/L, dy/L, dz/L], axis=1)
-        A = np.stack([Ax, Ay, Az], axis=1)
-        return A, U
-    
-    # @lru_cache(maxsize=64)
-    # def frames_for_stations(self, stations_mm_tuple: Tuple[float, ...]) -> Tuple[np.ndarray, np.ndarray]:
-    #     stations_mm = np.asarray(stations_mm_tuple, float)
-    #     s = self.stations
-    #     x = self.x_coords
-    #     y = self.y_coords
-    #     z = self.z_coords
-    #     Ax = np.interp(stations_mm, s, x)
-    #     Ay = np.interp(stations_mm, s, y)
-    #     Az = np.interp(stations_mm, s, z)
-    #     idx = np.searchsorted(s, stations_mm, side='right') - 1
-    #     idx = np.clip(idx, 0, len(s) - 2)
-    #     dx = x[idx + 1] - x[idx]
-    #     dy = y[idx + 1] - y[idx]
-    #     dz = z[idx + 1] - z[idx]
-    #     L = np.sqrt(dx**2 + dy**2 + dz**2)
-    #     L[L == 0.0] = 1.0
-    #     U = np.stack([dx/L, dy/L, dz/L], axis=1)
-    #     A = np.stack([Ax, Ay, Az], axis=1)
-    #     return A, U
-    
-    
-   
-    def _rotate_vecs_about_axis(V, U, theta):
-        """Rotate each row of V about corresponding U by angle theta (radians). V,U:(S,3), theta:(S,)"""
-        theta = np.asarray(theta, float).reshape(-1, 1)
-        c = np.cos(theta); s = np.sin(theta)
-        udv = (U * V).sum(axis=1, keepdims=True)
-        return V * c + np.cross(U, V) * s + U * udv * (1.0 - c)
-
-  
-    def _rotate_180_about_axis(P, A, U):
-        R = P - A[:, None, :]
-        dot = np.einsum('sni,si->sn', R, U)
-        Rnew = 2.0*dot[:, :, None]*U[:, None, :] - R
-        return A[:, None, :] + Rnew
-
-    
-    def _section_basis_from_tangent(U):
-        U = np.asarray(U, float)
-        up = np.array([0.0, 0.0, 1.0])
-        dot_up = (U * up[None, :]).sum(axis=1)
-        near_up = np.abs(dot_up) > 0.9
-        ref = np.tile(up, (len(U), 1))
-        ref[near_up] = np.array([1.0, 0.0, 0.0])
-        Y = np.cross(ref, U)
-        Yn = np.linalg.norm(Y, axis=1, keepdims=True); Yn[Yn == 0.0] = 1.0
-        Y /= Yn
-        Z = np.cross(U, Y)
-        Zn = np.linalg.norm(Z, axis=1, keepdims=True); Zn[Zn == 0.0] = 1.0
-        Z /= Zn
-        mask = Z[:, 2] < 0.0
-        if np.any(mask):
-            Y[mask] *= -1.0
-            Z[mask] *= -1.0
-        return Y, Z
-
-    def embed_points_to_global_mm(axis, stations_mm, X_mm, Y_mm, twist_deg=0.0):
-        stations_mm = np.asarray(stations_mm, float)
-        X_mm = np.asarray(X_mm, float)
-        Y_mm = np.asarray(Y_mm, float)
-
-        # cached frames (lru_cache on the Axis instance)
-        A, U = axis.frames_for_stations(tuple(np.round(stations_mm, 6)))
-
-        # basis in the normal plane
-        Yb, Zb = Axis._section_basis_from_tangent(U)
-
-        # optional twist
-        if np.any(np.asarray(twist_deg) != 0.0):
-            theta = np.deg2rad(np.asarray(twist_deg, float)).reshape(len(stations_mm))
-            Yb = Axis._rotate_vecs_about_axis(Yb, U, theta)
-            Zb = Axis._rotate_vecs_about_axis(Zb, U, theta)
-
-        # assemble + legacy 180° flip
-        P = (A[:, None, :] +
-             X_mm[:, :, None] * Yb[:, None, :] +
-             Y_mm[:, :, None] * Zb[:, None, :])
-        P = Axis._rotate_180_about_axis(P, A, U)
-        return P
-
-    def get_segment_for_station(self, station):
+    def clamp_station_m(self, s_m: float) -> float:
         """
-        Find the segment containing the station and compute interpolation factor.
-        
-        Args:
-            station (float): Station value in mm.
-            
-        Returns:
-            tuple: (i, t) where i is the index of the segment's start point,
-                   and t is the interpolation factor (0 <= t <= 1).
-                   Returns (None, None) if station is out of range.
+        Clamp a station given in meters to the axis domain, return meters.
+        Axis stores stations in mm internally.
         """
-        for i in range(len(self.stations) - 1):
-            if self.stations[i] <= station <= self.stations[i + 1]:
-                t = (station - self.stations[i]) / (self.stations[i + 1] - self.stations[i]) if self.stations[i + 1] != self.stations[i] else 0
-                return i, t
-        print(f"Warning: Station {station} mm is outside the range [{self.stations[0]}, {self.stations[-1]}] mm")
-        return None, None
+        s_mm = float(s_m) * 1000.0
+        s_mm = float(np.clip(s_mm, float(self.stations[0]), float(self.stations[-1])))
+        return s_mm / 1000.0
 
-    def get_position_at_station(self, station):
+    def point_at_m(self, s_m: float) -> np.ndarray:
         """
-        Interpolate global position (X, Y, Z) at the given station in mm.
-        
-        Args:
-            station (float): Station value in mm.
-            
-        Returns:
-            tuple: (X, Y, Z) global coordinates in mm, or (0, 0, 0) if out of range.
+        Interpolated world position (mm) at a station given in meters.
         """
-        i, t = self.get_segment_for_station(station)
-        if i is None:
-            return 0.0, 0.0, 0.0
-        x = self.x_coords[i] + t * (self.x_coords[i + 1] - self.x_coords[i])
-        y = self.y_coords[i] + t * (self.y_coords[i + 1] - self.y_coords[i])
-        z = self.z_coords[i] + t * (self.z_coords[i + 1] - self.z_coords[i])
+        s_mm = self.clamp_station_m(float(s_m)) * 1000.0
+        x, y, z = self.get_position_at_station(s_mm)
+        return np.array([x, y, z], dtype=float)
+
+
+    # ----- sampling -----
+
+    def get_segment_for_station(self, station: float) -> Tuple[Optional[int], Optional[float]]:
+        """
+        Return (i, t) such that station lies on segment i..i+1 and
+        position = P[i] * (1-t) + P[i+1] * t. Results are in [0,1].
+
+        Returns (None, None) if station is out of the axis range.
+        """
+        s = float(station)
+        s0, s1 = float(self.stations[0]), float(self.stations[-1])
+        if s < s0 or s > s1:
+            logger.warning("Station %.3f mm is outside [%.3f, %.3f] mm.", s, s0, s1)
+            return None, None
+
+        i = int(np.searchsorted(self.stations, s, side="right") - 1)
+        i = max(0, min(i, len(self.stations) - 2))
+        ds = self.stations[i + 1] - self.stations[i]
+        if ds == 0.0:
+            return i, 0.0
+        t = (s - self.stations[i]) / ds
+        return i, float(t)
+
+    def get_position_at_station(self, station: float) -> Tuple[float, float, float]:
+        """
+        Interpolate global position (X,Y,Z) at the given station (mm).
+        """
+        s = float(station)
+        # Fast vector interpolation along the stored polyline:
+        x = float(np.interp(s, self.stations, self.x_coords))
+        y = float(np.interp(s, self.stations, self.y_coords))
+        z = float(np.interp(s, self.stations, self.z_coords))
         return x, y, z
 
-    def get_plane_basis_at_station(self, station):
+    def _positions_and_tangents(self, stations_mm: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
-        Compute orthonormal basis vectors for the plane perpendicular to the axis segment at the interpolated position.
-        
-        Args:
-            station (float): Station value in mm.
-            
-        Returns:
-            tuple: (u, v, tangent) where u and v are orthonormal vectors in the plane,
-                and tangent is the segment's direction vector (unitless).
-                Returns (None, None, None) if out of range or invalid segment.
+        Sample world positions P and unit tangents T at the given stations (mm).
+        P:(N,3) in mm, T:(N,3) unitless.
         """
-        i, t = self.get_segment_for_station(station)
-        if i is None:
-            return None, None, None
+        stations_mm = np.asarray(stations_mm, float)
+        # Positions via 1D interpolation on each component
+        Px = np.interp(stations_mm, self.stations, self.x_coords)
+        Py = np.interp(stations_mm, self.stations, self.y_coords)
+        Pz = np.interp(stations_mm, self.stations, self.z_coords)
+        P = np.stack([Px, Py, Pz], axis=1)  # (N,3)
 
-        pos0 = np.array([self.x_coords[i], self.y_coords[i], self.z_coords[i]])
-        pos1 = np.array([self.x_coords[i + 1], self.y_coords[i + 1], self.z_coords[i + 1]])
-        position = pos0 + t * (pos1 - pos0)
-        tangent = pos1 - pos0
-        tangent_norm = np.linalg.norm(tangent)
-        if tangent_norm == 0:
-            print(f"Warning: Zero-length segment at station {station} mm")
-            return None, None, None
-        tangent = tangent / tangent_norm
+        # Tangents via centered finite differences (forward/backward at ends)
+        T = np.zeros_like(P)
+        if len(P) >= 2:
+            T[1:-1] = P[2:] - P[:-2]
+            T[0]    = P[1] - P[0]
+            T[-1]   = P[-1] - P[-2]
+        T = _normalize_rows(T)
+        return P, T
 
-        # Use a reference vector perpendicular to the tangent, ensure v is positive Z
-        ref_vector = np.array([0, 0, 1]) if abs(np.dot(tangent, [0, 0, 1])) < 0.9 else np.array([0, 1, 0])
-        u = np.cross(tangent, ref_vector)
-        u = u / np.linalg.norm(u)
-        v = np.cross(u, tangent)  # Ensure v aligns with positive Z preference
-        v = v / np.linalg.norm(v)
-        if v[2] < 0:
-            v = -v  # Flip v to ensure positive Z component
+    # ----- frames & embedding -----
 
-        return u, v, tangent
-
-    def transform_points(self, list_dicts_eval_points, stations, rotation_angle=0):
+    def parallel_transport_frames(self, stations_mm: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
-        Transform lists of points at given stations to global coordinates in mm, with optional rotation around the longitudinal axis.
-        
-        Args:
-            list_dicts_eval_points (list): List of lists of dictionaries with 'id', 'x', 'y', and possibly other keys,
-                                        where 'x' and 'y' are in mm.
-            stations (list): List of station values in mm corresponding to each point list.
-            rotation_angle (float, optional): Rotation angle in degrees around the longitudinal axis (default: 0).
-            
-        Returns:
-            list: List of lists of dictionaries with all original keys plus 'x_global', 'y_global', 'z_global' keys,
-                where 'x_global', 'y_global', 'z_global' are in mm.
+        Build rotation-minimizing frames along the axis.
+        Returns (T, N, B), each (N,3), where:
+          T: unit tangent,
+          N: transported normal (minimal twist),
+          B: binormal = T x N.
         """
-        if len(list_dicts_eval_points) != len(stations):
-            print(f"Warning: Number of point sets ({len(list_dicts_eval_points)}) does not match number of stations ({len(stations)})")
-            return []
+        P, T = self._positions_and_tangents(stations_mm)
+        N = np.zeros_like(P)
+        B = np.zeros_like(P)
 
-        transformed_points = []
-        for station, points in zip(stations, list_dicts_eval_points):
-            station_points = []
-            for point in points:
-                try:
-                    global_x, global_y, global_z = self.transform_to_global(station, point['x'], point['y'], rotation_angle)
-                    # Create a new dictionary that copies all original keys and adds global coordinates
-                    transformed_point = dict(point)  # Shallow copy of the original point dictionary
-                    transformed_point.update({
-                        'x_global': float(global_x),  # Global X coordinate (in mm)
-                        'y_global': float(global_y),  # Global Y coordinate (in mm)
-                        'z_global': float(global_z)   # Global Z coordinate (in mm)
-                    })
-                    station_points.append(transformed_point)
-                except (KeyError, TypeError) as e:
-                    print(f"Warning: Invalid point format at station {station} mm: {point}. Error: {e}")
-                    continue
-            transformed_points.append(station_points)
-        return transformed_points
+        # Initial normal from an up-hint projected orthogonal to T[0]
+        up = np.array([0.0, 0.0, 1.0], dtype=float)
+        n0 = up - T[0] * float(up @ T[0])
+        if np.linalg.norm(n0) < 1e-9:
+            # Fallback if up is (near) parallel to T0
+            up = np.array([0.0, 1.0, 0.0], dtype=float)
+            n0 = up - T[0] * float(up @ T[0])
+        N[0] = _normalize_rows(n0)
+        B[0] = _normalize_rows(np.cross(T[0], N[0]))
 
-    def transform_to_global(self, station, local_x, local_y, rotation_angle=0):
+        # Parallel-transport along the curve using Rodrigues rotations
+        for i in range(1, len(P)):
+            t_prev, t_cur = T[i - 1], T[i]
+            v = np.cross(t_prev, t_cur)
+            s = float(np.linalg.norm(v))
+            c = float(np.clip(t_prev @ t_cur, -1.0, 1.0))
+
+            if s < 1e-12:
+                # No significant change in tangent: keep previous normal/binormal
+                N[i] = N[i - 1]
+                B[i] = B[i - 1]
+                continue
+
+            axis = v / s
+            theta = math.atan2(s, c)
+            R = _rodrigues(axis, theta)
+            Ni = R @ N[i - 1]
+
+            # Re-orthonormalize (accumulated drift guard)
+            Ni = Ni - (Ni @ t_cur) * t_cur
+            Ni = Ni / (np.linalg.norm(Ni) + 1e-12)
+            N[i] = Ni
+            B[i] = np.cross(t_cur, Ni)
+
+        return T, N, B
+
+    def embed_section_points_world(
+        self,
+        stations_mm: np.ndarray,
+        yz_points_mm: np.ndarray,
+        x_offsets_mm: np.ndarray | None = None,
+        rotation_deg: float | np.ndarray = 0.0,
+    ) -> np.ndarray:
         """
-        Transform local (x, y) coordinates to global (X, Y, Z) coordinates in mm,
-        ensuring the plane is perpendicular to the axis segment at the station, with optional rotation around the longitudinal axis.
-        
-        Args:
-            station (float): Station value in mm.
-            local_x (float): Local x coordinate in mm (maps to width direction in the plane).
-            local_y (float): Local y coordinate in mm (maps to height direction in the plane).
-            rotation_angle (float, optional): Rotation angle in degrees around the longitudinal axis (default: 0).
-            
-        Returns:
-            tuple: (X, Y, Z) global coordinates in mm, or (0, 0, 0) if transformation fails.
+        Transform local (Y,Z) section points into world coordinates using
+        rotation-minimizing frames at each requested station.
+
+        Args
+        ----
+        stations_mm : (N,) array
+            Stations (mm) at which to place the section.
+        yz_points_mm : (M,2) or (N,M,2) array
+            Local section points (Y,Z) in mm. If (M,2), broadcast to all stations.
+        x_offsets_mm : optional (N,) array
+            Forward offsets along the tangent (local X) in mm. Default 0.
+        rotation_deg : float or (N,) array
+            Additional in-plane rotation (degrees) applied within each local YZ plane.
+
+        Returns
+        -------
+        W : (N,M,3) array
+            World coordinates in mm. W[i, k] corresponds to point k of the section at station i.
         """
-        # Get position and plane basis
-        origin_x, origin_y, origin_z = self.get_position_at_station(station)
-        u, v, tangent = self.get_plane_basis_at_station(station)
-        if u is None or v is None:
-            return 0.0, 0.0, 0.0
+        stations_mm = np.asarray(stations_mm, float)
+        if stations_mm.ndim != 1:
+            raise ValueError("stations_mm must be a 1D array of stations in mm.")
 
-        # Apply rotation to local coordinates
-        theta = math.radians(rotation_angle)  # Convert degrees to radians
-        cos_theta = math.cos(theta)
-        sin_theta = math.sin(theta)
-        # 2D rotation matrix: [cos θ, -sin θ; sin θ, cos θ]
-        x_rotated = local_x * cos_theta - local_y * sin_theta
-        y_rotated = local_x * sin_theta + local_y * cos_theta
+        # Axis frames
+        P, T = self._positions_and_tangents(stations_mm)   # (N,3), (N,3)
+        _, N, B = self.parallel_transport_frames(stations_mm)  # (T,N,B) -> we only need N,B here
 
-        # Debug basis and rotation
-        print(f"Station {station} mm: tangent={tangent}, u={u}, v={v}, rotation_angle={rotation_angle} deg")
-        print(f"Local coords: ({local_x}, {local_y}) -> Rotated local coords: ({x_rotated}, {y_rotated})")
+        # Normalize/expand section arrays
+        yz = np.asarray(yz_points_mm, float)
+        if yz.ndim == 2:
+            # (M,2) -> broadcast to (N,M,2)
+            yz = np.broadcast_to(yz, (len(stations_mm),) + yz.shape)
+        elif yz.ndim != 3 or yz.shape[0] != len(stations_mm) or yz.shape[2] != 2:
+            raise ValueError("yz_points_mm must be (M,2) or (N,M,2).")
 
-        # Transform rotated local coordinates to global
-        global_coords = (
-            origin_x + x_rotated * u[0] + y_rotated * v[0],
-            origin_y + x_rotated * u[1] + y_rotated * v[1],
-            origin_z + x_rotated * u[2] + y_rotated * v[2]
-        )
-        return global_coords
+        # Optional in-plane rotation (per-station)
+        rot = np.asarray(rotation_deg, float)
+        if rot.ndim == 0:
+            rot = np.full(len(stations_mm), float(rotation_deg), dtype=float)
+        theta = np.deg2rad(rot)
+        c, s = np.cos(theta), np.sin(theta)  # (N,)
 
-    # @lru_cache(maxsize=64)
-    # def frames_for_stations(self, stations_mm_tuple: Tuple[float, ...]) -> Tuple[np.ndarray, np.ndarray]:
-    #     stations_mm = np.asarray(stations_mm_tuple, float)
-    #     s = self.stations
-    #     x = self.x_coords
-    #     y = self.y_coords
-    #     z = self.z_coords
-    #     Ax = np.interp(stations_mm, s, x)
-    #     Ay = np.interp(stations_mm, s, y)
-    #     Az = np.interp(stations_mm, s, z)
-    #     idx = np.searchsorted(s, stations_mm, side='right') - 1
-    #     idx = np.clip(idx, 0, len(s) - 2)
-    #     dx = x[idx + 1] - x[idx]
-    #     dy = y[idx + 1] - y[idx]
-    #     dz = z[idx + 1] - z[idx]
-    #     L = np.sqrt(dx**2 + dy**2 + dz**2)
-    #     L[L == 0.0] = 1.0
-    #     U = np.stack([dx/L, dy/L, dz/L], axis=1)
-    #     A = np.stack([Ax, Ay, Az], axis=1)
-    #     return A, U
+        y = yz[..., 0]                       # (N,M)
+        z = yz[..., 1]                       # (N,M)
+        y_rot = c[:, None] * y - s[:, None] * z
+        z_rot = s[:, None] * y + c[:, None] * z
 
-    # def transform_points(self, list_dicts_eval_points, stations, rotation_angle=0):
-    #     """Transform points (from original)."""
-    #     if len(list_dicts_eval_points) != len(stations):
-    #         logger.warning("Point sets and stations mismatch.")
-    #         return []
-    #     transformed_points = []
-    #     for station, points in zip(stations, list_dicts_eval_points):
-    #         station_points = []
-    #         for point in points:
-    #             try:
-    #                 global_x, global_y, global_z = self.transform_to_global(station, point['x'], point['y'], rotation_angle)
-    #                 transformed_point = dict(point)
-    #                 transformed_point.update({
-    #                     'x_global': float(global_x),
-    #                     'y_global': float(global_y),
-    #                     'z_global': float(global_z)
-    #                 })
-    #                 station_points.append(transformed_point)
-    #             except (KeyError, TypeError) as e:
-    #                 logger.warning(f"Invalid point at station {station}: {e}")
-    #                 continue
-    #         transformed_points.append(station_points)
-    #     return transformed_points
+        # Optional longitudinal offsets (local X)
+        if x_offsets_mm is None:
+            x_offsets_mm = np.zeros(len(stations_mm), dtype=float)
+        x_offsets_mm = np.asarray(x_offsets_mm, float)
+        if x_offsets_mm.shape != (len(stations_mm),):
+            raise ValueError("x_offsets_mm must be None or shape (N,) to match stations_mm.")
 
-    # def transform_to_global(self, station, local_x, local_y, rotation_angle=0):
-    #     """Transform local to global (from original)."""
-    #     origin_x, origin_y, origin_z = self.get_position_at_station(station)
-    #     u, v, tangent = self.get_plane_basis_at_station(station)
-    #     if u is None or v is None:
-    #         return 0.0, 0.0, 0.0
-    #     theta = math.radians(rotation_angle)
-    #     cos_theta = math.cos(theta)
-    #     sin_theta = math.sin(theta)
-    #     x_rotated = local_x * cos_theta - local_y * sin_theta
-    #     y_rotated = local_x * sin_theta + local_y * cos_theta
-    #     global_coords = (
-    #         origin_x + x_rotated * u[0] + y_rotated * v[0],
-    #         origin_y + x_rotated * u[1] + y_rotated * v[1],
-    #         origin_z + x_rotated * u[2] + y_rotated * v[2]
-    #     )
-    #     return global_coords
+        # Compose world coordinates
+        W = (P[:, None, :]                         # (N,1,3)
+             + x_offsets_mm[:, None, None] * T[:, None, :]   # local X along T
+             + y_rot[:, :, None] * N[:, None, :]             # local Y along N
+             + z_rot[:, :, None] * B[:, None, :])            # local Z along B
+        return W
 
-    # def get_position_at_station(self, station):
-    #     """Get position at station (from original)."""
-    #     i, t = self.get_segment_for_station(station)
-    #     if i is None:
-    #         return 0.0, 0.0, 0.0
-    #     x = self.x_coords[i] + t * (self.x_coords[i + 1] - self.x_coords[i])
-    #     y = self.y_coords[i] + t * (self.y_coords[i + 1] - self.y_coords[i])
-    #     z = self.z_coords[i] + t * (self.z_coords[i + 1] - self.z_coords[i])
-    #     return x, y, z
 
-    # def get_plane_basis_at_station(self, station):
-    #     """Get basis at station (from original)."""
-    #     i, t = self.get_segment_for_station(station)
-    #     if i is None:
-    #         return None, None, None
-    #     pos0 = np.array([self.x_coords[i], self.y_coords[i], self.z_coords[i]])
-    #     pos1 = np.array([self.x_coords[i + 1], self.y_coords[i + 1], self.z_coords[i + 1]])
-    #     tangent = pos1 - pos0
-    #     tangent_norm = np.linalg.norm(tangent)
-    #     if tangent_norm == 0:
-    #         return None, None, None
-    #     tangent = tangent / tangent_norm
-    #     ref_vector = np.array([0, 0, 1]) if abs(np.dot(tangent, [0, 0, 1])) < 0.9 else np.array([0, 1, 0])
-    #     u = np.cross(tangent, ref_vector)
-    #     u = u / np.linalg.norm(u)
-    #     v = np.cross(u, tangent)
-    #     v = v / np.linalg.norm(v)
-    #     if v[2] < 0:
-    #         v = -v
-    #     return u, v, tangent
-    
-    # @staticmethod
-    # def embed_points_to_global_mm(axis, stations_mm, X_mm, Y_mm, twist_deg=0.0):
-    #     stations_mm = np.asarray(stations_mm, float)
-    #     X_mm = np.asarray(X_mm, float)
-    #     Y_mm = np.asarray(Y_mm, float)
-
-    #     # cached frames (lru_cache on the Axis instance)
-    #     A, U = axis.frames_for_stations(tuple(np.round(stations_mm, 6)))
-
-    #     # basis in the normal plane
-    #     Yb, Zb = Axis._section_basis_from_tangent(U)
-
-    #     # optional twist
-    #     if np.any(np.asarray(twist_deg) != 0.0):
-    #         theta = np.deg2rad(np.asarray(twist_deg, float)).reshape(len(stations_mm))
-    #         Yb = Axis._rotate_vecs_about_axis(Yb, U, theta)
-    #         Zb = Axis._rotate_vecs_about_axis(Zb, U, theta)
-
-    #     # assemble + legacy 180° flip
-    #     P = (A[:, None, :] +
-    #          X_mm[:, :, None] * Yb[:, None, :] +
-    #          Y_mm[:, :, None] * Zb[:, None, :])
-    #     P = Axis._rotate_180_about_axis(P, A, U)
-    #     return P
-
-    def get_segment_for_station(self, station):
-        """Get segment for station (from original)."""
-        for i in range(len(self.stations) - 1):
-            if self.stations[i] <= station <= self.stations[i + 1]:
-                t = (station - self.stations[i]) / (self.stations[i + 1] - self.stations[i]) if self.stations[i + 1] != self.stations[i] else 0
-                return i, t
-        return None, None
+# ---------- tiny self-test ----------
 
 if __name__ == "__main__":
     test_stations = [0, 100, 200]
     test_x = [0, 100, 200]
     test_y = [0, 100, 100]
     test_z = [0, 100, 200]
-    axis = Axis(test_stations, test_x, test_y, test_z, units='m')
+    axis = Axis(test_stations, test_x, test_y, test_z, units="m")
     assert len(axis) == 3
+    # simple embed smoke-test
+    stations_mm = np.array([0.0, 100000.0, 200000.0])  # mm (since units='m' -> stored as mm)
+    yz = np.array([[0.0, 0.0], [1000.0, 0.0]])         # two points in the section (Y,Z) mm
+    W = axis.embed_section_points_world(stations_mm, yz, rotation_deg=0.0)
+    print("Embedded shape:", W.shape)
     logger.info("axis.py test passed.")

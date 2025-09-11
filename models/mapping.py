@@ -1,270 +1,352 @@
-from __future__ import annotations
-from typing import Any, Dict
+# models/mapping.py
+# python_field -> JSON key(s) mapping for SpotLoader._load_typed()
 
-_MAPPING_BY_NAME: Dict[str, Dict[str, Any]] = {
-    "DeckObject": {
-        "No": "no",
-        "Class": "class_name",
-        "Type": "type",
-        "Description": "description",
-        "Name": "name",
-        "InActive": "inactive",
-        "Axis@Name": "axis_name",
-        "CrossSection@Type": "cross_section_types",
-        "CrossSection@Name": "cross_section_names",
-        "GrpOffset": "grp_offset",
-        "PlacementId": "placement_id",
-        "PlacementDescription": "placement_description",
-        "Ref-PlacementId": "ref_placement_id",
-        "Ref-StationOffset": "ref_station_offset",
-        "StationValue": "station_value",
-        "CrossSection_Points@Name": "cross_section_points_name",
-        "Grp": "grp",
-        "CrossSection@Ncs": "cross_section_ncs",
-        "AxisVariables": "axis_variables"
-    },
-    "Axis": {
-        "Class": "Class",
-        "Name": "Name",
-        "StaionValue": "stations",
-        "CurvCoorX": "x_coords",
-        "CurvCoorY": "y_coords",
-        "CurvCoorZ": "z_coords"
-    },
-    "AxisVariable": {
-        "VariableName": "VariableName",
-        "StationValue": "VariableStations",
-        "VariableValues": "VariableValues",
-        "VariableIntTypes": "VariableIntTypes",
-        "VariableDescription": "VariableDescription"
-    },
-    "PierObject": {
-        "No": "no",
-        "Class": "class_name",
-        "Type": "type",
-        "Description": "description",
-        "Name": "name",
-        "InActive": "inactive",
-        "ObjectAxisName": "object_axis_name",
-        "CrossSection@Type": "cross_section_type",
-        "CrossSection@Name": "cross_section_name",
-        "Axis@Name": "axis_name",
-        "Ref-PlacementId": "ref_placement_id",
-        "Ref-StationOffset": "ref_station_offset",
-        "StationValue": "station_value",
-        "Top-CrossSection_Point@Name": "top_cross_section_points_name",
-        'Top-CrossSection_Points@Name': 'top_cross_section_points_name',
-        "Top-Yoffset": "top_yoffset",
-        "Top-Zoffset": "top_zoffset",
-        "Top-CrossSection@Ncs": "top_cross_section_ncs",
-        'Top-CrossSection@NCS': 'top_cross_section_ncs',
-        "Bot-CrossSection_Point@Name": "bot_cross_section_points_name",
-        'Bot-CrossSection_Points@Name': 'bot_cross_section_points_name',
-        "Bot-Yoffset": "bot_yoffset",
-        "Bot-Zoffset": "bot_zoffset",
-        'Bot-CrossSection@NCS': 'bot_cross_section_ncs',
-        "Bot-CrossSection@Ncs": "bot_cross_section_ncs",
-        "Bot-PierElevation": "bot_pier_elevation",
-        "RotationAngle": "rotation_angle",
-        "Grp": "grp",
-        "Fixation": "fixation",
-        "Internal-PlacementId": "internal_placement_id",
-        "Internal_Ref-PlacementId": "internal_ref_placement_id",
-        "Internal_Ref-StationOffset": "internal_ref_station_offset",
-        "Internal@StationValue": "internal_station_value",
-        'Internal-StationValue': 'internal_station_value',
-        "Internal-CrossSection@Ncs": "internal_cross_section_ncs",
-        'Internal-CrossSection@NCS': 'internal_cross_section_ncs',
-        "GrpOffset": "grp_offset",
-        "AxisVariables": "axis_variables"
-    },
-    "FoundationObject": {
-        "No": "no",
-        "Class": "class_name",
-        "Type": "type",
-        "Description": "description",
-        "Name": "name",
-        "InActive": "inactive",
-        "ObjectAxisName": "object_axis_name",
-        "CrossSection@Type": "cross_section_type",
-        "CrossSection@Name": "cross_section_name",
-        "Ref-PlacementId": "ref_placement_id",
-        "Ref-StationOffset": "ref_station_offset",
-        "StationValue": "station_value",
-        "CrossSection_Points@Name": "cross_section_points_name",
-        "FoundationRefPoint-YOffset": "foundation_ref_point_y_offset",
-        "FoundationRefPoint-XOffset": "foundation_ref_point_x_offset",
-        "FoundationLevel": "foundation_level",
-        "RotationAngle": "rotation_angle",
-        "Axis@Name": "axis_name",
-        "PierObject@Name": "pier_object_name",
-        "Point1": "point1",
-        "Point2": "point2",
-        "Point3": "point3",
-        "Point4": "point4",
-        "Thickness": "thickness",
-        "Grp": "grp",
-        "CrossSection@Ncs2": "cross_section_ncs2",
-        "Top_ZOffset": "top_z_offset",
-        "Bot_ZOffset": "bot_z_offset",
-        "Top_Xoffset": "top_x_offset",
-        "Top_Yoffset": "top_y_offset",
-        "PileDirAngle": "pile_dir_angle",
-        "PileSlope": "pile_slope",
-        "Kx": "kx",
-        "Ky": "ky",
-        "Kz": "kz",
-        "Rx": "rx",
-        "Ry": "ry",
-        "Rz": "rz",
-        "Fixation": "fixation",
-        "Eval-PierObject@Name": "eval_pier_object_name",
-        "Eval-StationValue": "eval_station_value",
-        "Eval_Bot-CrossSection_Points@Name": "eval_bot_cross_section_points_name",
-        "Eval_Bot-Yoffset": "eval_bot_y_offset",
-        "Eval_Bot-Zoffset": "eval_bot_z_offset",
-        "Eval_Bot-PierElevation": "eval_bot_pier_elevation",
-        "Internal-PlacementId": "internal_placement_id",
-        "Internal_Ref-PlacementId": "internal_ref_placement_id",
-        "Internal_Ref-StationOffset": "internal_ref_station_offset",
-        "Internal-StationValue": "internal_station_value",
-        "Internal-CrossSection@Ncs": "internal_cross_section_ncs",
-        "GrpOffset": "grp_offset",
-        "AxisVariables": "axis_variables"
-    },
+from typing import Any, Iterable, List
+
+def _flt(x, d=0.0):
+    try:
+        return float(x)
+    except Exception:
+        return d
+
+def _flts(seq) -> List[float]:
+    try:
+        return [float(v) for v in (seq or [])]
+    except Exception:
+        return []
+
+def _ints(seq) -> List[int]:
+    try:
+        return [int(v) for v in (seq or [])]
+    except Exception:
+        return []
+
+def _maybe_int(x, d=0):
+    try:
+        return int(x)
+    except Exception:
+        return d
+
+def _list(v):
+    if v is None:
+        return []
+    if isinstance(v, (list, tuple)):
+        return list(v)
+    return [v]
+
+def _first(row: dict, *keys: Iterable[str], default=None):
+    for k in keys:
+        if k in row and row.get(k) not in (None, ""):
+            return row.get(k)
+    return default
+
+mapping = {
+    # ---------------- Core typed families ----------------
+
+    
     "CrossSection": {
-        "No": "no",
-        "Class": "class_name",
-        "Type": "type",
-        "Description": "description",
-        "Name": "name",
-        "InActive": "inactive",
-        "NCS": "ncs",
-        "Material1": "material1",
-        "Material2": "material2",
-        "Material_Reinf": "material_reinf",
-        "JSON_name": "json_name",
-        "SofiCode": "sofi_code",
-        "Points": "points",
-        "Variables": "variables"
+        "no":                "No",
+        "class_name":        "Class",
+        "type":              "Type",
+        "description":       "Description",
+        "name":              "Name",
+        "inactive":          "InActive",
+        "ncs":               (lambda r: _maybe_int(_first(r, "NCS", "Ncs", "ncs"), 0)),
+        "material1":         "Material1",
+        "material2":         "Material2",
+        "material_reinf":    "Material_Reinf",
+        "json_name":         "JSON_name",
+        "sofi_code":         "SofiCode",
+        "points":            "Points",
+        "variables":         "Variables",
+        "cross_section_types": "CrossSection@Type",
+        # (optional but useful)
+        "axis_variables":      "AxisVariables"
+
     },
 
     "MainStation": {
-        "No": "no",
-        "Class": "class_name",
-        "Type": "type",
-        "Description": "description",
-        "Name": "name",
-        "InActive": "inactive",
-        "Axis@Name": "axis_name",
-        "PlacementId": "placement_id",
-        "Ref-PlacementId": "ref_placement_id",
-        "Ref-StationOffset": "ref_station_offset",
-        "StationValue": "station_value",
-        "StationType": "station_type",
-        "StationRotationX": "station_rotation_x",
-        "StationRotationZ": "station_rotation_z",
-        "SOFi_Code": "sofi_code",
-        "SofiCode": "sofi_code",
+        "no":                 "No",
+        "class_name":         "Class",
+        "type":               "Type",
+        "description":        "Description",
+        "name":               "Name",
+        "inactive":           "InActive",
+        "axis_name":          "Axis@Name",
+        "placement_id":       "PlacementId",
+        "ref_placement_id":   "Ref-PlacementId",
+        "ref_station_offset": (lambda r: _flt(_first(r, "Ref-StationOffset"))),
+        "station_value":      (lambda r: _flt(_first(r, "StationValue"))),
+        "station_type":       "StationType",
+        # match your dataclass field names exactly:
+        "station_rotation_x": "StationRotationX",
+        "station_rotation_z": "StationRotationZ",
+        "sofi_code":          (lambda r: _first(r, "SOFi_Code", "SofiCode", "SOFiCode", default="")),
+        
+
     },
+
+    "DeckObject": {
+        "no":                        "No",
+        "class_name":                "Class",
+        "type":                      "Type",
+        "description":               "Description",
+        "name":                      "Name",
+        "inactive":                  "InActive",
+        "axis_name":                 "Axis@Name",
+
+        "cross_section_types":       (lambda r: _list(_first(r, "CrossSection@Type"))),
+        "cross_section_names":       (lambda r: _list(_first(r, "CrossSection@Name"))),
+        "cross_section_ncs":         (lambda r: _ints(_first(r, "CrossSection@Ncs", "CrossSection@NCS") or [])),
+        "cross_section_points_name": (lambda r: _list(_first(r, "CrossSection_Points@Name"))),
+
+        "placement_id":              (lambda r: _list(_first(r, "PlacementId"))),
+        "placement_description":     (lambda r: _list(_first(r, "PlacementDescription"))),
+        "ref_placement_id":          (lambda r: _list(_first(r, "Ref-PlacementId"))),
+        "ref_station_offset":        (lambda r: _flts(_first(r, "Ref-StationOffset") or [])),
+        "station_value":             (lambda r: _flts(_first(r, "StationValue") or [])),
+
+        "grp":                       (lambda r: _list(_first(r, "Grp"))),
+        "grp_offset":                (lambda r: _flts(_first(r, "GrpOffset") or [])),
+
+        "axis_variables":            "AxisVariables",
+    },
+
+    "PierObject": {
+        "no":                           "No",
+        "class_name":                   "Class",
+        "type":                         "Type",
+        "description":                  "Description",
+        "name":                         "Name",
+        "inactive":                     "InActive",
+        "object_axis_name":             "ObjectAxisName",
+        "cross_section_type":           "CrossSection@Type",
+        "cross_section_name":           "CrossSection@Name",
+        "axis_name":                    "Axis@Name",
+
+        "ref_placement_id":             "Ref-PlacementId",
+        "ref_station_offset":           (lambda r: _flt(_first(r, "Ref-StationOffset"))),
+        "station_value":                (lambda r: _flt(_first(r, "StationValue"))),
+
+        "top_cross_section_points_name":(lambda r: _first(
+                                                r,
+                                                "Top-CrossSection_Point@Name",
+                                                "Top-CrossSection_Points@Name",
+                                                "TopCrossSection@PointsName",
+                                                default=""
+                                            )),
+        "top_yoffset":                  (lambda r: _flt(_first(r, "Top-Yoffset"))),
+        "top_zoffset":                  (lambda r: _flt(_first(r, "Top-Zoffset"))),
+        "top_cross_section_ncs":        (lambda r: _maybe_int(_first(r, "Top-CrossSection@Ncs", "Top-CrossSection@NCS"), 0)),
+
+        "bot_cross_section_points_name":(lambda r: _first(
+                                                r,
+                                                "Bot-CrossSection_Point@Name",
+                                                "Bot-CrossSection_Points@Name",
+                                                "BotCrossSection@PointsName",
+                                                default=""
+                                            )),
+        "bot_yoffset":                  (lambda r: _flt(_first(r, "Bot-Yoffset"))),
+        "bot_zoffset":                  (lambda r: _flt(_first(r, "Bot-Zoffset"))),
+        "bot_cross_section_ncs":        (lambda r: _maybe_int(_first(r, "Bot-CrossSection@Ncs", "Bot-CrossSection@NCS"), 0)),
+        "bot_pier_elevation":           (lambda r: _flt(_first(r, "Bot-PierElevation"))),
+
+        "rotation_angle":               (lambda r: _flt(_first(r, "RotationAngle"))),
+        "grp":                          (lambda r: _maybe_int(_first(r, "Grp"), 0)),
+        "fixation":                     "Fixation",
+
+        "internal_placement_id":        (lambda r: _list(_first(r, "Internal-PlacementId"))),
+        "internal_ref_placement_id":    (lambda r: _list(_first(r, "Internal_Ref-PlacementId"))),
+        "internal_ref_station_offset":  (lambda r: _flts(_first(r, "Internal_Ref-StationOffset") or [])),
+        "internal_station_value":       (lambda r: _flts(_first(r, "Internal@StationValue", "Internal-StationValue") or [])),
+        "internal_cross_section_ncs":   (lambda r: _ints(_first(r, "Internal-CrossSection@Ncs", "Internal-CrossSection@NCS") or [])),
+        "grp_offset":                   (lambda r: _flts(_first(r, "GrpOffset") or [])),
+
+        "axis_variables":               "AxisVariables",
+    },
+
+    "FoundationObject": {
+        "no":                           "No",
+        "class_name":                   "Class",
+        "type":                         "Type",
+        "description":                  "Description",
+        "name":                         "Name",
+        "inactive":                     "InActive",
+        "object_axis_name":             "ObjectAxisName",
+        "cross_section_type":           "CrossSection@Type",
+        "cross_section_name":           "CrossSection@Name",
+        "ref_placement_id":             "Ref-PlacementId",
+        "ref_station_offset":           (lambda r: _flt(_first(r, "Ref-StationOffset"))),
+        "station_value":                (lambda r: _flt(_first(r, "StationValue"))),
+        "cross_section_points_name":    "CrossSection_Points@Name",
+        "foundation_ref_point_y_offset":(lambda r: _flt(_first(r, "FoundationRefPoint-YOffset"))),
+        "foundation_ref_point_x_offset":(lambda r: _flt(_first(r, "FoundationRefPoint-XOffset"))),
+        "foundation_level":             (lambda r: _flt(_first(r, "FoundationLevel"))),
+        "rotation_angle":               (lambda r: _flt(_first(r, "RotationAngle"))),
+        "axis_name":                    "Axis@Name",
+        "pier_object_name":             (lambda r: _list(_first(r, "PierObject@Name"))),
+
+        "point1":                       "Point1",
+        "point2":                       "Point2",
+        "point3":                       "Point3",
+        "point4":                       "Point4",
+        "thickness":                    "Thickness",
+        "grp":                          "Grp",
+
+        "cross_section_ncs2":           (lambda r: _maybe_int(_first(r, "CrossSection@Ncs2"), 0)),
+        "top_z_offset":                 (lambda r: _flt(_first(r, "Top_ZOffset"))),
+        "bot_z_offset":                 (lambda r: _flt(_first(r, "Bot_ZOffset"))),
+        "top_x_offset":                 (lambda r: _flt(_first(r, "Top_Xoffset"))),
+        "top_y_offset":                 (lambda r: _flt(_first(r, "Top_Yoffset"))),
+
+        "pile_dir_angle":               (lambda r: _flt(_first(r, "PileDirAngle"))),
+        "pile_slope":                   (lambda r: _flt(_first(r, "PileSlope"))),
+
+        "kx":                           (lambda r: _flt(_first(r, "Kx"))),
+        "ky":                           (lambda r: _flt(_first(r, "Ky"))),
+        "kz":                           (lambda r: _flt(_first(r, "Kz"))),
+        "rx":                           (lambda r: _flt(_first(r, "Rx"))),
+        "ry":                           (lambda r: _flt(_first(r, "Ry"))),
+        "rz":                           (lambda r: _flt(_first(r, "Rz"))),
+
+        "fixation":                     "Fixation",
+
+        "eval_pier_object_name":        "Eval-PierObject@Name",
+        "eval_station_value":           (lambda r: _flt(_first(r, "Eval-StationValue"))),
+        "eval_bot_cross_section_points_name": "Eval_Bot-CrossSection_Points@Name",
+        "eval_bot_y_offset":            (lambda r: _flt(_first(r, "Eval_Bot-Yoffset"))),
+        "eval_bot_z_offset":            (lambda r: _flt(_first(r, "Eval_Bot-Zoffset"))),
+        "eval_bot_pier_elevation":      (lambda r: _flt(_first(r, "Eval_Bot-PierElevation"))),
+
+        "internal_placement_id":        (lambda r: _list(_first(r, "Internal-PlacementId"))),
+        "internal_ref_placement_id":    (lambda r: _list(_first(r, "Internal_Ref-PlacementId"))),
+        "internal_ref_station_offset":  (lambda r: _flts(_first(r, "Internal_Ref-StationOffset") or [])),
+        "internal_station_value":       (lambda r: _flts(_first(r, "Internal-StationValue") or [])),
+        "internal_cross_section_ncs":   (lambda r: _ints(_first(r, "Internal-CrossSection@Ncs") or [])),
+        "grp_offset":                   (lambda r: _flts(_first(r, "GrpOffset") or [])),
+
+        "axis_variables":               "AxisVariables",
+    },
+
     "BearingArticulation": {
-        "No": "no",
-        "Class": "class_name",
-        "Type": "type",
-        "Description": "description",
-        "Name": "name",
-        "InActive": "inactive",
-        "Axis@Name": "axis_name",
-        "Ref-PlacementId": "ref_placement_id",
-        "Ref-StationOffset": "ref_station_offset",
-        "StationValue": "station_value",
-        "PierObject@Name": "pier_object_name",
-        "TopCrossSection@PointsName": "top_cross_section_points_name",
-        "Top-YOffset": "top_yoffset",
-        "Top-XOffset": "top_xoffset",
-        "BotCrossSection@PointsName": "bot_cross_section_points_name",
-        "Bot-YOffset": "bot_yoffset",
-        "Bot-XOffset": "bot_xoffset",
-        "Kx": "kx",
-        "Ky": "ky",
-        "Kz": "kz",
-        "Rx": "rx",
-        "Ry": "ry",
-        "Rz": "rz",
-        "GRP-Offset": "grp_offset",
-        "GRP": "grp",
-        "BearingDimensions": "bearing_dimensions",
-        "RotationX": "rotation_x",
-        "RotationZ": "rotation_z",
-        "Fixation": "fixation",
-        "Eval-PierObject@Name": "eval_pier_object_name",
-        "Eval-StationValue": "eval_station_value",
-        "Eval-TopCrossSection@PointsName": "eval_top_cross_section_points_name",
-        "Eval-Top-YOffset": "eval_top_yoffset",
-        "Eval-Top-ZOffset": "eval_top_zoffset",
-        "SOFi_Code": "sofi_code",
+        "no":                           "No",
+        "class_name":                   "Class",
+        "type":                         "Type",
+        "description":                  "Description",
+        "name":                         "Name",
+        "inactive":                     "InActive",
+
+        "axis_name":                    "Axis@Name",
+        "ref_placement_id":             "Ref-PlacementId",
+        "ref_station_offset":           (lambda r: _flt(_first(r, "Ref-StationOffset"))),
+        "station_value":                (lambda r: _flt(_first(r, "StationValue"))),
+        "pier_object_name":             "PierObject@Name",
+
+        "top_cross_section_points_name":(lambda r: _first(r, "TopCrossSection@PointsName", "Top-CrossSection_Points@Name")),
+        "top_yoffset":                  (lambda r: _flt(_first(r, "Top-YOffset", "Top-Yoffset"))),
+        "top_xoffset":                  (lambda r: _flt(_first(r, "Top-XOffset", "Top-Xoffset"))),
+
+        "bot_cross_section_points_name":(lambda r: _first(r, "BotCrossSection@PointsName", "Bot-CrossSection_Points@Name")),
+        "bot_yoffset":                  (lambda r: _flt(_first(r, "Bot-YOffset", "Bot-Yoffset"))),
+        "bot_xoffset":                  (lambda r: _flt(_first(r, "Bot-XOffset", "Bot-Xoffset"))),
+
+        "kx":                           (lambda r: _flt(_first(r, "Kx"))),
+        "ky":                           (lambda r: _flt(_first(r, "Ky"))),
+        "kz":                           (lambda r: _flt(_first(r, "Kz"))),
+        "rx":                           (lambda r: _flt(_first(r, "Rx"))),
+        "ry":                           (lambda r: _flt(_first(r, "Ry"))),
+        "rz":                           (lambda r: _flt(_first(r, "Rz"))),
+
+        "grp_offset":                   (lambda r: _flt(_first(r, "GRP-Offset", "GrpOffset", "GRPOffset"))),
+        "grp":                          (lambda r: _first(r, "GRP", "Grp", default="")),
+
+        "bearing_dimensions": "BearingDimentions", 
+        
+        "rotation_x":                   (lambda r: _flt(_first(r, "RotationX"))),
+        "rotation_z":                   (lambda r: _flt(_first(r, "RotationZ"))),
+        "fixation":                     "Fixation",
+
+        "eval_pier_object_name":        "Eval-PierObject@Name",
+        "eval_station_value":           (lambda r: _flt(_first(r, "Eval-StationValue"))),
+        "eval_top_cross_section_points_name": "Eval_Top-CrossSection_Points@Name",
+        "eval_top_yoffset":             (lambda r: _flt(_first(r, "Eval-Top-YOffset", "Eval-Top-Yoffset"))),
+        "eval_top_zoffset":             (lambda r: _flt(_first(r, "Eval-Top-ZOffset", "Eval-Top-Zoffset"))),
+        "sofi_code":                    (lambda r: _first(r, "SOFi_Code", "SofiCode", "SOFiCode", default="")),
     },
+
     "SecondaryObject": {
-        "No": "no",
-        "Class": "class_name",
-        "Type": "type",
-        "Description": "description",
-        "Name": "name",
-        "InActive": "inactive",
+        "no":                      "No",
+        "class_name":              "Class",
+        "type":                    "Type",
+        "description":             "Description",
+        "name":                    "Name",
+        "inactive":                "InActive",
 
-        # axes (two)
-        "Beg-Axis@Name": "beg_axis_name",
-        "End-Axis@Name": "end_axis_name",
+        "beg_axis_name":           "Beg-Axis@Name",
+        "end_axis_name":           "End-Axis@Name",
 
-        # beg side
-        "Beg-PlacementId": "beg_placement_id",
-        "Beg-PlacementDescription": "beg_placement_description",
-        "Beg-Ref-PlacementId": "beg_ref_placement_id",
-        "Beg-Ref-StationOffset": "beg_ref_station_offset",
-        "Beg-StationValue": "beg_station_value",
-        "Beg-CrossSection@PointsName": "beg_cross_section_points_name",
-        "Beg-NCS": "beg_ncs",
+        "beg_placement_id":        "Beg-PlacementId",
+        "beg_placement_description":"Beg-PlacementDescription",
+        "beg_ref_placement_id":    (lambda r: _first(r, "Beg_Ref-PlacementId", "Beg-Ref-PlacementId", default="")),
+        "beg_ref_station_offset":  (lambda r: _flt(_first(r, "Beg_Ref-StationOffset", "Beg-Ref-StationOffset"))),
+        "beg_station_value":       (lambda r: _flt(_first(r, "Beg-StationValue"))),
+        "beg_cross_section_points_name": "Beg-CrossSection@PointsName",
+        "beg_ncs":                 (lambda r: _maybe_int(_first(r, "Beg-NCS", "Beg-Ncs"), 0)),
 
-        # end side
-        "End-PlacementId": "end_placement_id",
-        "End-PlacementDescription": "end_placement_description",
-        "End-Ref-PlacementId": "end_ref_placement_id",
-        "End-Ref-StationOffset": "end_ref_station_offset",
-        "End-StationValue": "end_station_value",
-        "End-CrossSection@PointsName": "end_cross_section_points_name",
-        "End-NCS": "end_ncs",
+        "end_placement_id":        "End-PlacementId",
+        "end_placement_description":"End-PlacementDescription",
+        "end_ref_placement_id":    (lambda r: _first(r, "End_Ref-PlacementId", "End-Ref-PlacementId", default="")),
+        "end_ref_station_offset":  (lambda r: _flt(_first(r, "End_Ref-StationOffset", "End-Ref-StationOffset"))),
+        "end_station_value":       (lambda r: _flt(_first(r, "End-StationValue"))),
+        "end_cross_section_points_name": "End-CrossSection@PointsName",
+        "end_ncs":                 (lambda r: _maybe_int(_first(r, "End-NCS", "End-Ncs"), 0)),
 
-        "GRP-Offset": "grp_offset",
-        "GRP": "grp",
-    }
+        "grp_offset":              (lambda r: _flt(_first(r, "GRP-Offset", "GrpOffset", "GRPOffset"))),
+        "grp":                     (lambda r: _first(r, "GRP", "Grp", default="")),
+
+    },
+
+    "Materials": {
+        "name":            "Name",
+        "structure":       "Structure",
+        "material_no":     (lambda r: _maybe_int(_first(r, "MaterialNo"), 0)),
+        "material_id":     "MaterialId",
+        "fy":              (lambda r: _flt(_first(r, "Fy"))),
+        "fu":              (lambda r: _flt(_first(r, "Fu"))),
+        "elastic_modulus": (lambda r: _flt(_first(r, "ElasticModulus"))),
+        "shear_modulus":   (lambda r: _flt(_first(r, "ShearModulus"))),
+        "gam":             (lambda r: _flt(_first(r, "Gam"))),
+        "tmax":            (lambda r: _flt(_first(r, "Tmax"))),
+        "alfa":            (lambda r: _flt(_first(r, "Alfa"))),
+        "custom_code":     "SOFiSTiKCustomCode",
+        "description":     "Description",
+    },
+
+    "GlobalVariable": {
+        "name":        "Name",
+        "type":        "Type",
+        "description": "Description",
+        "value":       "Value",
+        "unit":        "Unit",
+        "inactive":    "InActive"
+    },
+
+    # used by VisoContext.wire_objects -> o.set_axis_variables(...)
+    "AxisVariable": {
+        "name":        "VariableName",
+        "stations":    "StationValue",
+        "values":      "VariableValues",
+        "int_types":   "VariableIntTypes",
+        "description": "VariableDescription",
+    },
+
+    # explicit keys for axes
+    "Axis": {
+        "name":      "Name",
+        "stations":  "StaionValue",
+        "x_coords":  "CurvCoorX",
+        "y_coords":  "CurvCoorY",
+        "z_coords":  "CurvCoorZ",
+        "class":     "Class",
+    },
 }
-
-def _name_of(key: Any) -> str:
-    if isinstance(key, str):
-        return key
-    n = getattr(key, "__name__", None)
-    if n:
-        return n
-    cls = getattr(key, "__class__", None)
-    if cls and getattr(cls, "__name__", None):
-        return cls.__name__
-    return str(key)
-
-class _MappingFacade:
-    """Dict-like facade so existing code can keep calling mapping.get(Axis, {})."""
-
-    def get(self, key: Any, default=None):
-        # IMPORTANT: return the provided default when missing
-        return _MAPPING_BY_NAME.get(_name_of(key), default)
-
-    def __getitem__(self, key: Any):
-        return _MAPPING_BY_NAME[_name_of(key)]
-
-    def __contains__(self, key: Any):
-        return _name_of(key) in _MAPPING_BY_NAME
-
-    @property
-    def by_name(self) -> Dict[str, Dict[str, Any]]:
-        return _MAPPING_BY_NAME
-
-mapping = _MappingFacade()

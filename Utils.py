@@ -50,7 +50,7 @@ _VECTOR_FUNCS = {
     'acos': np.arccos, 'asin': np.arcsin, 'atan': np.arctan,
     'LOG': np.log, 'EXP': np.exp, 'SQRT': np.sqrt, 'ABS': np.abs,
     'log': np.log, 'exp': np.exp, 'sqrt': np.sqrt, 'abs': np.abs,
-    'PI': math.pi, 'Pi': math.pi, 'pi': math.pi,
+    'PI': np.pi, 'Pi': np.pi, 'pi': np.pi, "deg2rad": np.deg2rad, "rad2deg": np.rad2deg,
 }
 
 # prevent variable names from shadowing function names
@@ -61,20 +61,49 @@ _ALLOWED_AST = (
     ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod, ast.FloorDiv, ast.USub, ast.UAdd, ast.Call
 )
 
+def _clean_expr(expr: str) -> str:
+    s = str(expr).strip()
+    # 1) allow a leading unary '+'
+    if s.startswith('+'):
+        s = s[1:].lstrip()
+    # 2) caret → python power (if you ever see ^)
+    s = s.replace('^', '**')
+    return s
+
+# utils.py
+_ALLOWED_FUNC_NAMES = set(_SCALAR_FUNCS.keys()) | set(_VECTOR_FUNCS.keys())
+
 @lru_cache(maxsize=4096)
 def _compile_expr(expr_text: str):
+    expr_text = _clean_expr(expr_text)
     node = ast.parse(str(expr_text), mode='eval')
     for n in ast.walk(node):
         if not isinstance(n, _ALLOWED_AST):
             raise ValueError(f"Disallowed expression: {expr_text}")
         if isinstance(n, ast.Call):
-            if not isinstance(n.func, ast.Name) or n.func.id not in _SCALAR_FUNCS:
+            if not isinstance(n.func, ast.Name) or n.func.id not in _ALLOWED_FUNC_NAMES:
                 raise ValueError(f"Disallowed function: {getattr(n.func, 'id', '?')}")
     return compile(node, "<expr>", "eval")
 
 def _sanitize_vars(variables: dict) -> dict:
     # drop keys that would shadow functions/constants
     return {k: v for k, v in (variables or {}).items() if k not in _RESERVED_FUNC_NAMES}
+
+def safe_eval_scalar(expr: str, vars_: Dict[str, float]) -> float:
+    """
+    Safe scalar eval for loaders / inspectors. Returns float('nan') on error.
+    """
+    try:
+        return float(expr)  # numeric fast-path
+    except Exception:
+        pass
+    try:
+        code = _compile_expr(expr)
+        env = {k: float(v) for k, v in vars_.items() if k not in _RESERVED_FUNC_NAMES}
+        env.update(_SCALAR_FUNCS)
+        return float(eval(code, {"__builtins__": {}}, env))
+    except Exception:
+        return float('nan')
 
 
 # Hashing Utilities

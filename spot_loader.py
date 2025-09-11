@@ -1,112 +1,278 @@
 # spot_loader.py
 from __future__ import annotations
-import os, json
-from typing import Dict, List, Tuple, Optional, Any
+import logging
+import os
+import inspect
+import importlib
+from dataclasses import dataclass, field
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Type, TYPE_CHECKING
 
-
-
-# Very fast JSON if present
+# --- IO helpers (your SPOT_Filters) -----------------------------------------
 try:
-    import orjson as _fastjson
+    # package-relative import
+    from .SPOT_Filters import get_subfolders, get_json_files, load_json_objects
 except Exception:
-    _fastjson = None
+    # flat import fallback
+    from SPOT_Filters import get_subfolders, get_json_files, load_json_objects
 
-# Reuse your helpers & models
-from SPOT_Filters import get_json_files, load_json_objects   # folder scan + bulk load  :contentReference[oaicite:6]{index=6}
-from models import Axis, MainStation, CrossSection, DeckObject, PierObject, FoundationObject, VisoContext, AxisVariable, load_from_json, build_viso_object
-from models.mapping import mapping as MAP
+# --- Mapping + Context -------------------------------------------------------
+try:
+    from models.mapping import mapping as MAP
+except Exception:
+    from mapping import mapping as MAP  # fallback if flat
 
+try:
+    from models.viso_context import VisoContext
+except Exception:
+    from viso_context import VisoContext  # fallback if flat
 
-# from AddClasses import (
-#     load_from_json, mapping,
-#     CrossSection, DeckObject,
-#     VisoContext, build_viso_object, BaseObject, MainStation, from_dict
-# )
+# --- TYPE CHECKING ONLY (no runtime deps required) ---------------------------
+if TYPE_CHECKING:
+    from models.axis import Axis
+    from models.cross_section import CrossSection
+    from models.main_station import MainStation
+    from models.deck_object import DeckObject
+    from models.pier_object import PierObject
+    from models.foundation_object import FoundationObject
+    from models.bearing_articulation import BearingArticulation
+    from models.secondary_object import SecondaryObject
+    #from models.materials import Materials
+    #from models.global_variable import GlobalVariable
+    from models.axis_variable import AxisVariable
 
+import json, os
+from collections import defaultdict
 
-def _is_axis_type(t):
-    try:
-        return issubclass(t, Axis)
-    except Exception:
-        # fallback: name-only match if duplicated modules
-        return getattr(t, '__name__', '') == 'Axis'
-# Pier/Foundation optional
-# try:
-#     from AddClasses import PierObject, FoundationObject
-#     _has_pier_found = True
-# except Exception:
-#     PierObject = FoundationObject = None
-#     _has_pier_found = False
-_has_pier_found = True
-#from AxisVariables import AxisVariable  # used to map axis variables  :contentReference[oaicite:7]{index=7}
-
-
-def _read_json(path: str):
-    """
-    Small helper: read JSON file as Python object.
-    Uses orjson if available (2–5x faster on large files).
-    """
-    if _fastjson:
-        with open(path, "rb") as f:
-            return _fastjson.loads(f.read())
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-    
-def _as_dicts(rows):
-    """Accept dicts or SpotJsonObject; return list[dict]."""
-    out = []
-    for r in rows or []:
-        if hasattr(r, "to_dict"):
-            out.append(r.to_dict())
-        elif isinstance(r, dict):
-            out.append(r)
-    return out
-
-
+# --------------------------------------------------------------------------- #
+# SpotLoader
+# --------------------------------------------------------------------------- #
+@dataclass
 class SpotLoader:
-    """
-    Central loader that scans a branch folder (e.g. ...\GIT\MAIN),
-    loads all '_*.json' files, splits by Class, materializes domain
-    objects (with your existing AddClasses loader), and assembles
-    final vis input (with JSON caching).
-    """
+    master_folder: str
+    branch: Optional[str] = None
+    verbose: bool = False
 
-    def __init__(
-        self,
-        master_folder: str,
-        branch: str = "MAIN",
-        *,
-        cond_pier_foundation: bool = False,
-        verbose: bool = True,
-    ):
-        self.master_folder = master_folder
+    # ------------------------------- internals ------------------------------ #
+    def _dbg(self, *parts: object) -> None:
+        if self.verbose:
+            print(*("[SpotLoader]", *parts))
+
+    @property
+    def _logger(self) -> logging.Logger:
+        # Lazy to avoid configuring global logging for callers
+        return logging.getLogger(__name__)
+
+    # raw + grouped
+    _raw_rows: List[Dict[str, Any]] = field(default_factory=list, init=False)
+    _by_class: Dict[str, List[Dict[str, Any]]] = field(default_factory=dict, init=False)
+
+    # context
+    ctx: Optional[VisoContext] = field(default=None, init=False)
+
+    # typed collections (populated by build_all_with_context)
+    _deck_objects: List[Any] = field(default_factory=list, init=False)
+    _pier_objects: List[Any] = field(default_factory=list, init=False)
+    _foundation_objects: List[Any] = field(default_factory=list, init=False)
+    _bearing_objects: List[Any] = field(default_factory=list, init=False)
+    _secondary_objects: List[Any] = field(default_factory=list, init=False)
+    _materials: List[Any] = field(default_factory=list, init=False)
+    _globals: List[Any] = field(default_factory=list, init=False)
+
+    # convenience for UI / vis
+    vis_objs: List[Any] = field(default_factory=list, init=False)
+
+    # cache for loaded section library files
+    _section_payload_cache: Dict[str, dict] = field(default_factory=dict, init=False, repr=False)
+
+    def __post_init__(self):
+    # ...your existing init...
+        self.repo_root = os.path.abspath(os.path.join(self.master_folder, os.pardir))
+        self.master_section_dir = os.path.join(self.repo_root, "MASTER_SECTION")
+
+    def _resolve_candidate_path(self, candidate: str) -> Optional[str]:
+        """
+        Resolve to .../MASTER_SECTION/<candidate>.
+        Accepts either a basename ('PierMaster.json') or a path ('subdir/xyz.json').
+        """
+        if not candidate:
+            return None
+
+        # Normalize: keep both original and basename
+        names = [candidate.replace("\\", os.sep).replace("/", os.sep),
+                os.path.basename(candidate)]
+
+        for name in names:
+            p = os.path.join(self.master_section_dir, name)
+            if os.path.exists(p):
+                return p
+        return None
+
+    def _load_section_payload(self, candidate: str) -> Optional[Dict]:
+        """
+        Load the geometry JSON once; cached on path.
+        """
+        path = self._resolve_candidate_path(candidate)
+        if not path:
+            self._logger.debug("[SpotLoader] geometry not found in MASTER_SECTION: %r", candidate)
+            return None
+
+        cache = self._section_payload_cache  # class-level cache
+        if path in cache:
+            return cache[path]
+
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            cache[path] = data
+            self._logger.debug("[SpotLoader] loaded geometry JSON: %s  Points=%d Loops=%d",
+                        os.path.basename(path),
+                        len(data.get("Points") or []),
+                        len(data.get("Loops") or []))
+            return data
+        except Exception as e:
+            self._logger.warning("[SpotLoader] failed reading %s: %s", path, e)
+            return None
+
+
+    def _pick_default_library_for_consumers(self, consumers: set[str]) -> list[str]:
+        """
+        Order of fallbacks based on who uses the CrossSection.
+        """
+        out: list[str] = []
+        if "DeckObject" in consumers:
+            out.append("MASTER_DeckMain-1Gird-Slab.json")
+        if "PierObject" in consumers:
+            out.append("PierMaster.json")
+        if "FoundationObject" in consumers:
+            out.append("MASTER_Foundation.json")
+        # last resort: generic shapes
+        out.append("SectionData.json")
+        # dedupe preserving order
+        seen = set(); res=[]
+        for x in out:
+            if x not in seen:
+                seen.add(x); res.append(x)
+        return res
+
+    def _enrich_cross_sections_with_geometry(self, ctx) -> None:
+        """
+        Attach Loops/Points/Variables from external section JSONs to every CrossSection.
+        Priority:
+        1) explicit JSON_name on the cross section row (first that exists),
+        2) defaults inferred from which object types reference this NCS,
+        3) SectionData.json as a final fallback.
+        """
+        # Build: NCS -> set of consumer class names
+        consumers = defaultdict(set)
+
+        def _acc_ncs(obj, *attrs):
+            for a in attrs:
+                v = getattr(obj, a, None)
+                if v is None:
+                    continue
+                if isinstance(v, (list, tuple)):
+                    for n in v:
+                        try: consumers[int(n)].add(obj.__class__.__name__)
+                        except Exception: pass
+                else:
+                    try: consumers[int(v)].add(obj.__class__.__name__)
+                    except Exception: pass
+
+        # Deck
+        for o in getattr(ctx, "deck_objects", []):
+            _acc_ncs(o, "cross_section_ncs")
+
+        # Pier (top/bot/internal)
+        for o in getattr(ctx, "pier_objects", []):
+            _acc_ncs(o, "top_cross_section_ncs", "bot_cross_section_ncs", "internal_cross_section_ncs")
+
+        # Foundation
+        for o in getattr(ctx, "foundation_objects", []):
+            _acc_ncs(o, "cross_section_ncs", "cross_section_ncs2", "internal_cross_section_ncs")
+
+        # Secondary (beg/end)
+        for o in getattr(ctx, "secondary_objects", []):
+            _acc_ncs(o, "beg_ncs", "end_ncs")
+
+        # Enrich every cross section
+        for ncs, cs in (getattr(ctx, "crosssec_by_ncs", {}) or {}).items():
+            # 1) explicit hints (JSON_name can be str or list)
+            cand: list[str] = []
+            jn = getattr(cs, "json_name", None)
+            if isinstance(jn, str) and jn.strip():
+                cand.append(jn)
+            elif isinstance(jn, (list, tuple)):
+                cand += [s for s in jn if isinstance(s, str) and s.strip()]
+
+            # 2) fallbacks from consumers
+            cand += self._pick_default_library_for_consumers(consumers.get(ncs, set()))
+
+            payload = None
+            used = None
+            for c in cand:
+                payload = self._load_section_payload(c)
+                if payload:
+                    used = c
+                    break
+
+            if not payload:
+                self._logger.debug("[SpotLoader] no geometry for CrossSection ncs=%s name=%r  candidates=%s",
+                            ncs, getattr(cs, "name", ""), cand)
+                continue
+
+            # Copy over geometry
+            if not getattr(cs, "points", None):
+                cs.points = payload.get("Points") or []
+            cs.loops = payload.get("Loops") or getattr(cs, "loops", []) or []
+            if not getattr(cs, "variables", None):
+                cs.variables = payload.get("Variables") or {}
+
+            # keep the whole blob if you want to debug later
+            cs.json_data = payload
+
+            self._logger.debug("[SpotLoader] wired geometry for ncs=%s name=%r via %s  -> points=%d loops=%d",
+                        ncs, getattr(cs, "name", ""),
+                        used,
+                        len(cs.points or []),
+                        len(cs.loops or []))
+
+
+    # ------------------------------- public API ------------------------------ #
+    def set_branch(self, branch: str) -> "SpotLoader":
         self.branch = branch
-        self.cond_pier_foundation = cond_pier_foundation
-        self.verbose = verbose
-
-        self.branch_folder = os.path.join(master_folder, branch)
-        if not os.path.isdir(self.branch_folder):
-            raise FileNotFoundError(f"Branch folder not found: {self.branch_folder}")
-
-        self._raw_rows: List[dict] = []
-        self._by_class: Dict[str, List[dict]] = {}
-
-    # -------- raw read ---------------------------------------------------------
+        return self
 
     def load_raw(self) -> "SpotLoader":
         """
-        Load & flatten all JSON rows from _*.json files in the branch folder.
-        Uses SPOT_Filters.load_json_objects (already fast).  :contentReference[oaicite:8]{index=8}
+        Scan the target branch folder, load all JSON (files starting with "_"),
+        flatten to a single list of rows.
         """
-        json_files = get_json_files(self.branch_folder)  # only files starting with "_"  :contentReference[oaicite:9]{index=9}
-        # If you prefer orjson per-file speed here, you can re-implement
-        # a tiny loop, but SPOT_Filters.load_json_objects is fine:
-        self._raw_rows = load_json_objects(json_files)   # flattened list  :contentReference[oaicite:10]{index=10}
-        if self.verbose:
-            print(f"[SpotLoader] Loaded {len(self._raw_rows)} rows from {len(json_files)} files.")
-        return self
+        if not os.path.isdir(self.master_folder):
+            raise ValueError(f"Invalid master folder: {self.master_folder}")
+        
+        sub = get_subfolders(self.master_folder)
+        if not sub:
+            raise ValueError(f"No subfolders found in {self.master_folder}")
 
-    # -------- split by Class ---------------------------------------------------
+        # default to MAIN if present, otherwise first folder
+        selected = self.branch or ("MAIN" if "MAIN" in sub else sub[0])
+        folder_path = os.path.join(self.master_folder, selected)
+        if not os.path.isdir(folder_path):
+            raise ValueError(f"Selected branch not found: {folder_path}")
+
+        self._dbg("Master folder:", self.master_folder)
+        self._dbg("Subfolders found:", sub)
+        self._dbg("Selected branch:", selected, "->", folder_path)
+
+        json_files = get_json_files(folder_path)
+        rows = load_json_objects(json_files)  # list[dict] (flattened)
+
+        self._raw_rows = rows or []
+        self._dbg(f"Loaded {len(self._raw_rows)} rows from {len(json_files)} files.")
+        if self.verbose and json_files:
+            self._dbg("Files:", json_files[:5], ("... ({} more)".format(max(0, len(json_files)-5)) if len(json_files) > 5 else ""))
+
+        return self  # <-- important for method chaining
 
     def group_by_class(self) -> "SpotLoader":
         """
@@ -119,266 +285,421 @@ class SpotLoader:
                 continue
             rows.append(r)
 
-        by = {}
+        by: Dict[str, List[Dict[str, Any]]] = {}
         for r in rows:
             by.setdefault(r["Class"], []).append(r)
 
         self._by_class = by
         if self.verbose:
             summary = {k: len(v) for k, v in sorted(by.items())}
-            print(f"[SpotLoader] by Class: {summary}")
+            self._dbg("Grouped by Class:", summary)
+            self._dbg("Total rows (excluding ClassInfo/CDDMapping):", len(rows))
+            self._dbg("Classes found:", list(summary.keys()))
+            # Deep dive (very verbose)
+            for class_name, class_rows in sorted(by.items()):
+                self._dbg(f"  {class_name}: {len(class_rows)} rows")
+                for i, row in enumerate(class_rows, 1):
+                    self._dbg(f"    Row {i}: keys={list(row.keys())}")
+
         return self
 
-    # -------- materialize domain objects --------------------------------------
-
-    def context(self) -> VisoContext:
+    def build_all_with_context(self, *, verbose: bool = True) -> "SpotLoader":
         """
-        Build a reusable context (Axes + CrossSections [+ MainStations later]).
-        """
-        axis_rows = self._by_class.get("Axis", [])
-        cross_rows = self._by_class.get("CrossSection", [])
-        cross_sections, _ = load_from_json(CrossSection, cross_rows, MAP, axis_data=axis_rows)
-        return VisoContext.from_json(axis_rows, cross_sections, mainstations=None, mapping_cfg=MAP)
-    
-    def get_ctx(self) -> VisoContext:
-        return getattr(self, "ctx", None)
-
-    def get_axis(self, name: str):
-        return self.ctx.get_axis(name) if self.get_ctx() else None
-
-    def get_cross_section(self, ncs: int):
-        return self.ctx.get_cross_section(ncs) if self.get_ctx() else None
-
-    def get_mainstation(self, name: str):
-        return self.ctx.get_mainstation(name) if self.get_ctx() else None
-
-    def objects(self, clsname: str | None = None):
-        return self.ctx.all_objects(clsname) if self.get_ctx() else []
-
-    def objects_for_axis(self, axis_name: str, clsname: str | None = None):
-        return self.ctx.objects_for_axis(axis_name, clsname) if self.get_ctx() else []
-
-    def get_object_by_name(self, name: str):
-        return self.ctx.get_object_by_name(name) if self.get_ctx() else None
-
-    def get_object_by_id(self, oid):
-        return self.ctx.get_object_by_id(oid) if self.get_ctx() else None
-
-    def build_domain_objects(self):
-        """
-        Your current path that materializes domain objects.
-        (Axis rows are left as dicts; objects use load_from_json.)
-        """
-        axis_rows = self._by_class.get("Axis", [])
-        cs_rows   = self._by_class.get("CrossSection", [])
-        deck_rows = self._by_class.get("DeckObject", [])
-        pier_rows = self._by_class.get("PierObject", [])
-        fnd_rows  = self._by_class.get("FoundationObject", [])
-
-        cross_sections, _ = load_from_json(CrossSection, cs_rows, MAP, axis_data=axis_rows)
-
-        deck_objects, deck_filtered = load_from_json(DeckObject, deck_rows, MAP, axis_data=axis_rows)
-        for i, dobj in enumerate(deck_objects or []):
-            if hasattr(dobj, "axis_variables"):
-                dobj.set_axis_variables(deck_filtered[i].get("AxisVariables", []), MAP.get(AxisVariable, {}))
-            if hasattr(dobj, "axis_name") and axis_rows:
-                dobj.set_axis(dobj.axis_name, axis_rows)
-
-        pier_objects = foundation_objects = []
-        if _has_pier_found:
-            if pier_rows:
-                pier_objects, pier_filtered = load_from_json(PierObject, pier_rows, MAP, axis_data=axis_rows)
-                for i, pobj in enumerate(pier_objects or []):
-                    if hasattr(pobj, "axis_variables"):
-                        pobj.set_axis_variables(pier_filtered[i].get("AxisVariables", []), MAP.get(AxisVariable, {}))
-                    if hasattr(pobj, "axis_name") and axis_rows:
-                        pobj.set_axis(pobj.axis_name, axis_rows)
-            if fnd_rows:
-                foundation_objects, found_filtered = load_from_json(FoundationObject, fnd_rows, MAP, axis_data=axis_rows)
-                for i, fobj in enumerate(foundation_objects or []):
-                    if hasattr(fobj, "axis_variables"):
-                        fobj.set_axis_variables(found_filtered[i].get("AxisVariables", []), MAP.get(AxisVariable, {}))
-                    if hasattr(fobj, "axis_name") and axis_rows:
-                        fobj.set_axis(fobj.axis_name, axis_rows)
-
-        return axis_rows, cross_sections, deck_objects, deck_filtered, pier_objects, foundation_objects
-
-    def build_vis_components(
-        self,
-        *,
-        attach_section_json: bool = True,
-        verbose: bool = True,
-        axis_override=None,             # optional: list[dict] raw Axis rows to use instead of CSV rows
-        mainstations_override=None,     # optional: list[MainStation] objects (or raw rows; see below)
-        cross_sections_override=None    # optional: list[CrossSection] objects (or raw rows; see below)
-    ):
-        """
-        Component-driven build:
-        1) Create a VisoContext from Axis/CrossSection/MainStation collections.
-        2) Build Deck, Pier, Foundation objects by injecting the context
-            (so you can swap Axis/MainStations/CrossSections if desired).
-        3) Populate self.vis_data and self.vis_objs in the same shape as the old build_vis().
-
-        Notes:
-        - We DO NOT write or mutate any JSON files; when attach_section_json is True,
-            we just read the CrossSection JSON once and attach it to the vis row in memory.
-        - axis_override is expected to be a list of raw JSON rows (dicts). If not provided,
-            we use the Axis rows we already loaded from CSV/JSON.
+        Materialize typed objects for all known classes and build a VisoContext
+        that indexes + wires them.
         """
         if not self._by_class:
             self.group_by_class()
 
-        # ---- 1) Collect core component rows ----
-        axis_rows = self._by_class.get('Axis', []) or []
-        cs_rows   = self._by_class.get('CrossSection', []) or []
-        ms_rows   = self._by_class.get('MainStation', []) or []
+        axis_rows = self._by_class.get("Axis", []) or []
+        cs_rows   = self._by_class.get("CrossSection", []) or []
+        ms_rows   = self._by_class.get("MainStation", []) or []
 
-        # If an override is provided, prefer it when it looks like raw dict rows
-        axis_rows_for_ctx = axis_override if isinstance(axis_override, list) and axis_override and isinstance(axis_override[0], dict) else axis_rows
+        # --- typed core: CrossSection & MainStation
+        CrossSection = self._maybe_cls("cross_section", "CrossSection")
+        MainStation  = self._maybe_cls("main_station", "MainStation")
+        if self.verbose:
+            self._dbg("Resolved classes:",
+                      "CrossSection" if CrossSection else "CrossSection[missing]",
+                      "MainStation" if MainStation else "MainStation[missing]")
 
-        # Parse CrossSections/MainStations into objects (keep raw axis rows; VisoContext will build Axis objects)
-        if cross_sections_override is None:
-            cs_objs, _ = load_from_json(CrossSection, cs_rows, MAP, axis_data=axis_rows_for_ctx)
-        else:
-            # Allow passing either objects or raw rows
-            if isinstance(cross_sections_override, list) and cross_sections_override and isinstance(cross_sections_override[0], dict):
-                cs_objs, _ = load_from_json(CrossSection, cross_sections_override, MAP, axis_data=axis_rows_for_ctx)
+        cross_sections, _ = self._load_typed(CrossSection, cs_rows, axis_rows=axis_rows)
+        mainstations,  _  = self._load_typed(MainStation,  ms_rows, axis_rows=axis_rows)
+
+        # --- context (axes come from raw 'Axis' rows)
+        self.ctx = VisoContext.from_json(axis_rows, cross_sections, mainstations, mapping_cfg=MAP, verbose=False)
+        if self.verbose:
+            self._dbg("Context created:",
+                      f"axes={len(self.ctx.axes_by_name)}",
+                      f"cross_sections={len(self.ctx.crosssec_by_ncs)}|{len(self.ctx.crosssec_by_name)}",
+                      f"mainstations={len(self.ctx.mainstations_by_name)}")
+
+        # --- remaining families
+        DeckObject          = self._maybe_cls("deck_object", "DeckObject")
+        PierObject          = self._maybe_cls("pier_object", "PierObject")
+        FoundationObject    = self._maybe_cls("foundation_object", "FoundationObject")
+        BearingArticulation = self._maybe_cls("bearing_articulation", "BearingArticulation")
+        SecondaryObject     = self._maybe_cls("secondary_object", "SecondaryObject")
+        Materials           = self._maybe_cls("materials", "Materials")
+        GlobalVariable      = self._maybe_cls("global_variable", "GlobalVariable")
+        AxisVariable        = self._maybe_cls("axis_variable", "AxisVariable")
+        if self.verbose:
+            self._dbg("Resolved optional classes:",
+                      "Deck" if DeckObject else "Deck[missing]",
+                      "Pier" if PierObject else "Pier[missing]",
+                      "Fnd" if FoundationObject else "Fnd[missing]",
+                      "Bearing" if BearingArticulation else "Bearing[missing]",
+                      "Secondary" if SecondaryObject else "Secondary[missing]",
+                      "Materials" if Materials else "Materials[missing]",
+                      "Globals" if GlobalVariable else "Globals[missing]",
+                      "AxisVariable" if AxisVariable else "AxisVariable[missing]")
+            
+        self._deck_objects, deck_raw = self._load_typed(DeckObject, self._by_class.get("DeckObject", []) or [], axis_rows=axis_rows)
+        self._pier_objects, pier_raw = self._load_typed(PierObject, self._by_class.get("PierObject", []) or [], axis_rows=axis_rows)
+        self._foundation_objects, fnd_raw = self._load_typed(FoundationObject, self._by_class.get("FoundationObject", []) or [], axis_rows=axis_rows)
+        self._bearing_objects, _ = self._load_typed(BearingArticulation, self._by_class.get("BearingArticulation", []) or [], axis_rows=axis_rows)
+        self._secondary_objects, _ = self._load_typed(SecondaryObject, self._by_class.get("SecondaryObject", []) or [], axis_rows=axis_rows)
+        self._materials, _ = self._load_typed(Materials, self._by_class.get("Materials", []) or [], axis_rows=axis_rows)
+        self._globals, _ = self._load_typed(GlobalVariable, self._by_class.get("GlobalVariable", []) or [], axis_rows=axis_rows)
+
+        # Keep raw AxisVariables list on objects that expose .axis_variables (VisoContext will build objects)
+        self._maybe_set_raw_axisvars(self._deck_objects, deck_raw)
+        self._maybe_set_raw_axisvars(self._pier_objects, pier_raw)
+        self._maybe_set_raw_axisvars(self._foundation_objects, fnd_raw)
+
+        # --- wire + register everything
+        # AxisVariable mapping (support both class-key and string-key)
+        axis_var_map: Dict[str, Any] = {}
+        try:
+            if AxisVariable and (AxisVariable in MAP):
+                axis_var_map = MAP.get(AxisVariable, {}) or {}
             else:
-                cs_objs = cross_sections_override
+                axis_var_map = MAP.get("AxisVariable", {}) or {}
+        except Exception:
+            axis_var_map = MAP.get("AxisVariable", {}) or {}
+        if self.verbose:
+            self._dbg("AxisVariable mapping keys:", list(axis_var_map.keys()) if isinstance(axis_var_map, dict) else type(axis_var_map))
 
-        if mainstations_override is None:
-            ms_objs, _ = load_from_json(MainStation, ms_rows, MAP, axis_data=axis_rows_for_ctx)
-        else:
-            if isinstance(mainstations_override, list) and mainstations_override and isinstance(mainstations_override[0], dict):
-                ms_objs, _ = load_from_json(MainStation, mainstations_override, MAP, axis_data=axis_rows_for_ctx)
-            else:
-                ms_objs = mainstations_override
+        # spot_loader.py – after you’ve built ctx and registered objects
+        self._enrich_cross_sections_with_geometry(self.ctx)
 
-        # ---- 2) Build a context (indexes by name/NCS) from RAW axis rows + parsed CS/MS ----
-        # VisoContext.from_json expects raw Axis/MainStation/CrossSection rows OR lists of objects,
-        # but it is robust in your codebase to build the lookups we need.
-        ctx = VisoContext.from_json(
-            axis_rows_for_ctx,
-            cs_objs,
-            ms_objs,
-            mapping_cfg=MAP
+        self.ctx.add_objects(
+            self._deck_objects, self._pier_objects,
+            axis_var_map=axis_var_map,
         )
+        self.ctx.add_objects(self._foundation_objects, self._bearing_objects, self._secondary_objects, self._materials, self._globals, axis_var_map=axis_var_map)
 
-        # ---- 3) Parse Viso objects (Deck / Pier / Foundation) into dataclasses ----
-        deck_rows = self._by_class.get('DeckObject', []) or []
-        pier_rows = self._by_class.get('PierObject', []) or []
-        fnd_rows  = self._by_class.get('FoundationObject', []) or []
+        # --- convenience array useful for visualisation/UIs
+        self.vis_objs = list(self._deck_objects) + list(self._pier_objects) + list(self._foundation_objects) + list(self._bearing_objects) + list(self._secondary_objects)
 
-        deck_objs, _ = load_from_json(DeckObject, deck_rows, MAP, axis_data=axis_rows_for_ctx)
-        pier_objs, _ = load_from_json(PierObject,  pier_rows, MAP, axis_data=axis_rows_for_ctx)
-        fnd_objs,  _ = load_from_json(FoundationObject, fnd_rows, MAP, axis_data=axis_rows_for_ctx)
-
-        axis_var_map = MAP.get(AxisVariable, {})
-        ctx.add_objects(deck_objs, pier_objs, fnd_objs, axis_var_map=axis_var_map)
-        self.ctx = ctx
-
-
-        # ---- 4) Optional utility: attach CrossSection JSON once per vis row ----
-        # def _attach_json_data(vis_row: dict) -> dict:
-        #     jf = vis_row.get('json_file')
-        #     if not jf:
-        #         return vis_row
-        #     try:
-        #         with open(jf, 'r', encoding='utf-8') as f:
-        #             vis_row['json_data'] = json.load(f)
-        #     except Exception as e:
-        #         if verbose:
-        #             print(f"[SpotLoader] WARN: cannot open section JSON: {jf} ({e})")
-        #     return vis_row
-
-        def _attach_json_data(row: dict, branch_root: str):
-            jf = (row.get("json_file") or "").strip()
-            if not jf or jf.lower().startswith("no master"):
-                row["json_data"] = None
-                return row
-
-            import os, json
-            # if relative, join with branch
-            candidate = jf
-            if not os.path.isabs(candidate):
-                candidate = os.path.normpath(os.path.join(branch_root, candidate))
-
-            if os.path.exists(candidate):
-                with open(candidate, "r", encoding="utf-8") as f:
-                    row["json_data"] = json.load(f)
-            else:
-                # don't drop the row if json is missing; just leave json_data=None
-                row["json_data"] = None
-            return row
-
-        # ---- 5) Build vis rows via dependency injection ----
-        vis_data_all: list[dict] = []
-        vis_objs_all:  list      = []
-
-        # Helper to pick an axis for an object: named axis from ctx, else any/default
-        def _axis_for(obj):
-            # Try common attribute names; VisoContext.get_axis() handles case/spacing
-            name = getattr(obj, "axis_name", None) or getattr(obj, "object_axis_name", None)
-            ax = ctx.get_axis(name) if name else None
-            if ax is not None:
-                return ax
-            # last-resort fallback: first axis in the context
-            return next(iter(ctx.axes_by_name.values()), None)
-
-        # Keep ordering: Decks → Piers → Foundation (like your old build)
-        for obj in deck_objs:
-            vis_row = build_viso_object(
-                obj,
-                ctx,
-                axis=_axis_for(obj),
-                mainstations=ctx.mainstations_by_name,
-                cross_sections_override=list(ctx.crosssec_by_ncs.values()),  # lets create_input_for_visualisation resolve by NCS
-                mapping_cfg=MAP
-            )
-            if attach_section_json:
-                vis_row = _attach_json_data(vis_row, "MASTER_SECTION")
-            vis_data_all.append(vis_row)
-            vis_objs_all.append(obj)
-
-        for obj in pier_objs:
-            vis_row = build_viso_object(
-                obj,
-                ctx,
-                axis=_axis_for(obj),
-                mainstations=ctx.mainstations_by_name,
-                cross_sections_override=list(ctx.crosssec_by_ncs.values()),
-                mapping_cfg=MAP
-            )
-            if attach_section_json:
-                vis_row = _attach_json_data(vis_row, "MASTER_SECTION")
-            vis_data_all.append(vis_row)
-            vis_objs_all.append(obj)
-
-        for obj in fnd_objs:
-            vis_row = build_viso_object(
-                obj,
-                ctx,
-                axis=_axis_for(obj),
-                mainstations=ctx.mainstations_by_name,
-                cross_sections_override=list(ctx.crosssec_by_ncs.values()),
-                mapping_cfg=MAP
-            )
-            if attach_section_json:
-                vis_row = _attach_json_data(vis_row, "MASTER_SECTION")
-            vis_data_all.append(vis_row)
-            vis_objs_all.append(obj)
-
-        # ---- 6) Preserve fields expected by main.py ----
-        self._deck_objects       = deck_objs
-        self._pier_objects       = pier_objs
-        self._foundation_objects = fnd_objs
-
-        self.vis_data = vis_data_all
-        self.vis_objs = vis_objs_all
-
-        if verbose:
-            print(f"[Vis] rows: {len(self.vis_data)}")
-            for r in self.vis_data:
-                print(f"  - {r.get('name')} json_file= {r.get('json_file')} json_data= {bool(r.get('json_data'))}")
+        if verbose or self.verbose:
+            def _n(x): return len(x or [])
+            self._dbg("Objects registered:",
+                f"Deck={_n(self._deck_objects)} Pier={_n(self._pier_objects)}",
+                f"Fnd={_n(self._foundation_objects)} Bearing={_n(self._bearing_objects)}",
+                f"Sec={_n(self._secondary_objects)} Mat={_n(self._materials)} GVar={_n(self._globals)}")
 
         return self
+
+    # ------------------------------- helpers -------------------------------- #
+    def _maybe_cls(self, module_name: str, cls_name: str):
+        """
+        Resolve a class with several import strategies in priority order:
+          1) models.<module_name>
+          2) <module_name> (flat)
+          3) .<module_name> relative to this package (if available)
+          4) models package re-exports (models.__getattr__)
+        """
+        errs: List[str] = []
+
+        # 1) Preferred: fully-qualified under 'models'
+        try:
+            mod = importlib.import_module(f"models.{module_name}")
+            return getattr(mod, cls_name)
+        except Exception as e:
+            errs.append(f"models.{module_name}: {e!r}")
+
+        # 2) Flat module name (legacy)
+        try:
+            mod = importlib.import_module(module_name)
+            return getattr(mod, cls_name)
+        except Exception as e:
+            errs.append(f"{module_name}: {e!r}")
+
+        # 3) Relative to this package if __package__ is defined
+        try:
+            if __package__:
+                mod = importlib.import_module(f".{module_name}", package=__package__)
+                return getattr(mod, cls_name)
+        except Exception as e:
+            errs.append(f".{module_name}@{__package__}: {e!r}")
+
+        # 4) As a last resort, let the 'models' package re-export provide it
+        try:
+            pkg = importlib.import_module("models")
+            return getattr(pkg, cls_name)
+        except Exception as e:
+            errs.append(f"models re-export {cls_name}: {e!r}")
+
+        if self.verbose:
+            self._dbg(f"Unable to import {cls_name} from {module_name}:", " / ".join(errs))
+        return None
+
+    def _maybe_set_raw_axisvars(self, objs: List[Any], raw_rows: List[Dict[str, Any]]) -> None:
+        if not objs or not raw_rows:
+            return
+        for inst, row in zip(objs, raw_rows):
+            if hasattr(inst, "axis_variables"):
+                inst.axis_variables = (row or {}).get("AxisVariables", []) or getattr(inst, "axis_variables", [])
+
+    # -- typed materialization ------------------------------------------------ #
+    def _load_typed(
+        self,
+        cls: Optional[Type],
+        rows: List[Dict[str, Any]],
+        *,
+        axis_rows: List[Dict[str, Any]],
+    ) -> Tuple[List[Any], List[Dict[str, Any]]]:
+        """
+        Best-effort materialization of rows into typed objects.
+
+        Strategy (per row):
+          1) call a class factory if available:
+               - from_dict(row, mapping_cfg=MAP, axis_data=axis_rows)
+               - from_json(row, mapping_cfg=MAP, axis_data=axis_rows)
+               - from_raw(row, mapping_cfg=MAP, axis_data=axis_rows)
+          2) else build kwargs using mapping (MAP[cls] or MAP[cls.__name__]) and call cls(**kwargs)
+          3) on failure, return None and skip the row (but keep raw_rows for debugging)
+        """
+        if not cls:
+            return [], rows
+
+        factory_names = ("from_dict", "from_json", "from_raw")
+        mapping_for_cls = MAP.get(cls, None) or MAP.get(getattr(cls, "__name__", ""), {}) or {}
+
+        out: List[Any] = []
+        kept_raw: List[Dict[str, Any]] = []
+
+        for idx, r in enumerate(rows or []):
+            inst = None
+            kwargs: Dict[str, Any] = {}
+
+            # 1) Try factories with several signatures
+            for fname in factory_names:
+                fn = getattr(cls, fname, None)
+                if not callable(fn):
+                    continue
+                try:
+                    # Prefer keyword style — most robust to user-defined factories
+                    inst = fn(r, mapping_cfg=MAP, axis_data=axis_rows)
+                    if self.verbose:
+                        self._dbg(f"{cls.__name__}[{idx}] factory used:", fname)
+                except TypeError:
+                    # Try a few fallbacks
+                    try:
+                        inst = fn(r, MAP, axis_rows)
+                    except TypeError:
+                        try:
+                            inst = fn(r, MAP)
+                        except TypeError:
+                            try:
+                                inst = fn(r)
+                            except Exception:
+                                inst = None
+                except Exception as e:
+                    if self.verbose:
+                        self._dbg(f"{cls.__name__}[{idx}] factory {fname} raised:", repr(e))
+                    inst = None
+                if inst is not None:
+                    break
+
+            # 2) No factory worked — try dataclass-style ctor with mapped kwargs
+            if inst is None:
+                try:
+                    kwargs = self._build_kwargs_from_mapping(r, cls, mapping_for_cls)
+                    kwargs = _filter_kwargs_for_ctor(
+                        cls, kwargs,
+                        drop_none=True,
+                        verbose=self.verbose,
+                        dbg=self._dbg if self.verbose else None,
+                        tag=f"[{idx}]"
+                    )
+                    inst = cls(**kwargs)
+                except Exception as e:
+                    if self.verbose:
+                        cname = getattr(cls, "__name__", str(cls))
+                        self._dbg(f"{cname}[{idx}] ctor failed:", repr(e))
+                        self._dbg("  kwargs=", kwargs)
+                        self._dbg("  row_keys=", list(r.keys()))
+                    inst = None
+
+            if inst is not None:
+                out.append(inst)
+                kept_raw.append(r)
+            else:
+                if self.verbose:
+                    cname = getattr(cls, "__name__", str(cls))
+                    self._dbg(f"Warning: failed to instantiate {cname} from row idx={idx}")
+                # Very specific legacy fallback: only try DeckObject when we are *already* loading DeckObject
+                try:
+                    if getattr(cls, "__name__", "") == "DeckObject" and kwargs:
+                        if self.verbose:
+                            self._dbg(f"DeckObject[{idx}] trying legacy ctor fallback with kwargs keys:", list(kwargs.keys()))
+                        obj = cls(**kwargs)  # same as instantiation above; keep behavior symmetrical
+                        out.append(obj)
+                        kept_raw.append(r)
+                except Exception as e:
+                    # Use logger to avoid crashing; this was previously using an invalid 'log.error'
+                    self._logger.error("Legacy DeckObject fallback failed for row %s: %s", idx, e)
+
+        return out, kept_raw
+
+    def _build_kwargs_from_mapping(self, row: Dict[str, Any], cls: Type, mp: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Convert a raw row -> kwargs for a dataclass constructor using the mapping.
+
+        Accepts either:
+        - python_field -> json_key (what the loader originally expects), or
+        - json_key -> python_field (your current mapping style).
+
+        Also supports multiple source keys for one field (list/tuple), taking the first present.
+        """
+        kwargs: Dict[str, Any] = {}
+
+        # If no mapping, best-effort 1:1 (your original fallback)
+        if not mp:
+            dataclass_fields = getattr(cls, "__dataclass_fields__", {}) or {}
+            for f_name in dataclass_fields.keys():
+                if f_name in row:
+                    kwargs[f_name] = row[f_name]
+                else:
+                    cap = f_name[:1].upper() + f_name[1:]
+                    if cap in row:
+                        kwargs[f_name] = row[cap]
+            return kwargs
+
+        # Detect orientation
+        dc_fields = set((getattr(cls, "__dataclass_fields__", {}) or {}).keys())
+        # how many mapping KEYS look like python fields?
+        hits_keys_as_py = sum(1 for k in mp.keys() if k in dc_fields)
+        # how many mapping VALUES look like python fields?
+        hits_vals_as_py = sum(1 for v in mp.values() if isinstance(v, str) and v in dc_fields)
+        mapping_is_json_to_py = hits_keys_as_py == 0 and hits_vals_as_py > 0
+        if self.verbose:
+            orient = "json->py" if mapping_is_json_to_py else "py->json"
+            self._dbg(f"{getattr(cls, '__name__', cls)} mapping orientation:", orient)
+
+        # Normalize to python_field -> json_key(s)
+        if mapping_is_json_to_py:
+            # Merge duplicates: multiple json keys may map to the same python field
+            norm: Dict[str, Any] = {}
+            for json_key, py_field in mp.items():
+                if py_field in norm:
+                    prev = norm[py_field]
+                    if isinstance(prev, (list, tuple)):
+                        norm[py_field] = list(prev) + [json_key]
+                    else:
+                        norm[py_field] = [prev, json_key]
+                else:
+                    norm[py_field] = json_key
+            mp_norm = norm
+        else:
+            mp_norm = mp  # already python_field -> json_key
+
+        # Build kwargs
+        for py_field, js_spec in mp_norm.items():
+            if callable(js_spec):
+                val = js_spec(row)
+            else:
+                # js_spec can be a single key or a list/tuple of alternatives
+                if isinstance(js_spec, (list, tuple)):
+                    val = None
+                    for k in js_spec:
+                        if k in row:
+                            val = row.get(k)
+                            if val is not None:
+                                break
+                else:
+                    val = row.get(js_spec)
+            kwargs[py_field] = val
+            
+        if self.verbose:
+            missing = [f for f, v in kwargs.items() if v is None]
+            if missing:
+                self._dbg(f"{getattr(cls, '__name__', cls)} missing fields from row:", missing)
+
+        return kwargs
+
+    # ------------------------------- convenience ----------------------------- #
+    @property
+    def deck_objects(self) -> List[Any]:
+        return list(self._deck_objects)
+
+    @property
+    def pier_objects(self) -> List[Any]:
+        return list(self._pier_objects)
+
+    @property
+    def foundation_objects(self) -> List[Any]:
+        return list(self._foundation_objects)
+
+    @property
+    def bearing_objects(self) -> List[Any]:
+        return list(self._bearing_objects)
+
+    @property
+    def secondary_objects(self) -> List[Any]:
+        return list(self._secondary_objects)
+
+    @property
+    def materials(self) -> List[Any]:
+        return list(self._materials)
+
+    @property
+    def global_variables(self) -> List[Any]:
+        return list(self._globals)
+
+
+# imports needed at top of the file if not present
+import inspect
+from inspect import Parameter
+
+def _accepted_ctor_args(cls):
+    """
+    Return the set of accepted keyword names for cls's constructor and whether it
+    accepts **kwargs. Falls back to dataclass fields.
+    """
+    try:
+        sig = inspect.signature(cls)
+        accepts_var_kw = any(p.kind == Parameter.VAR_KEYWORD for p in sig.parameters.values())
+        names = {p.name for p in sig.parameters.values()
+                 if p.name != "self" and p.kind in (Parameter.POSITIONAL_OR_KEYWORD,
+                                                    Parameter.KEYWORD_ONLY)}
+        return names, accepts_var_kw
+    except (TypeError, ValueError):
+        # Dataclass or simple class without inspectable signature
+        dc_fields = getattr(cls, "__dataclass_fields__", {}) or {}
+        return set(dc_fields.keys()), False
+
+def _filter_kwargs_for_ctor(cls, kwargs, *, drop_none=True, verbose=False, dbg=None, tag=""):
+    """
+    Filter kwargs to only those that the class constructor will accept.
+    Optionally drop keys whose value is None.
+    """
+    accepted, has_var_kw = _accepted_ctor_args(cls)
+    if drop_none:
+        kwargs = {k: v for k, v in kwargs.items() if v is not None}
+    if has_var_kw:
+        # ctor has **kwargs; keep everything (after None drop)
+        kept = kwargs
+        dropped = []
+    else:
+        kept = {k: v for k, v in kwargs.items() if k in accepted}
+        dropped = [k for k in kwargs.keys() if k not in kept]
+    if verbose and dropped and dbg:
+        cname = getattr(cls, "__name__", str(cls))
+        dbg(f"{cname}{tag} dropped unknown kwargs:", dropped)
+    return kept
+
+
+
