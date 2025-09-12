@@ -932,56 +932,90 @@ if __name__ == "__main__":
         _bbox_max = np.maximum(_bbox_max, np.max(P, axis=0))
 
 
-    def smart_stations(obj, vis_row):
-        # start from what your vis builder already made (object breakpoints + densification)
-        base = getattr(obj, "stations_to_plot", None)
+    def smart_stations(obj, vis=None, ctx=None):
+        import numpy as np
+        base = set()
 
-        # add axis-variable knots (meters)
-        for var in getattr(obj, "axis_variables_obj", []) or []:
-            for x in (var.xs or []):
-                try: base.add(float(x))
-                except: pass
-
-        # add main-stations (if your ctx keeps them per axis)
-        ax = getattr(obj, "axis_obj", None)
-        if ax:
-            # axis stations are mm internally
+        def _floats(v):
+            if v is None: return []
             try:
-                s0 = float(ax.stations[0]) / 1000.0
-                s1 = float(ax.stations[-1]) / 1000.0
-                base.update([s0, s1])
+                if isinstance(v, np.ndarray):
+                    v = v.ravel().tolist()
+                elif not isinstance(v, (list, tuple, set)):
+                    v = [v]
+            except Exception:
+                v = [v]
+            out = []
+            for x in v:
+                try: out.append(float(x))
+                except: pass
+            return out
+
+        # 1) any precomputed stations (if a dict vis row was passed)
+        if isinstance(vis, dict):
+            base.update(_floats(vis.get("stations_to_plot")))
+
+        # 2) object-side breakpoints (meters)
+        for key in ("user_stations", "station_value", "internal_station_value"):
+            base.update(_floats(getattr(obj, key, None)))
+
+        # 3) variable knots (meters)
+        for var in getattr(obj, "axis_variables_obj", []) or []:
+            base.update(_floats(var.xs))
+
+        # 4) axis extents (axis.stations are mm)
+        ax = getattr(obj, "axis_obj", None)
+        if ax is not None:
+            stations_attr = getattr(ax, "stations", None)
+            if stations_attr is not None:
+                try:
+                    S = np.asarray(stations_attr, dtype=float)
+                    if S.size:
+                        base.update([float(S.flat[0])/1000.0, float(S.flat[-1])/1000.0])
+                except Exception:
+                    try:
+                        S = list(stations_attr)
+                        if len(S) >= 2:
+                            base.update([float(S[0])/1000.0, float(S[-1])/1000.0])
+                    except:
+                        pass
+
+        # (optional) mainstations per axis, if your ctx exposes them
+        if ctx is not None:
+            ax_name = getattr(obj, "axis_name", None) or getattr(obj, "object_axis_name", None)
+            try:
+                # try a few likely shapes of your context
+                if hasattr(ctx, "mainstations_by_axis") and ax_name in ctx.mainstations_by_axis:
+                    for ms in ctx.mainstations_by_axis[ax_name]:
+                        base.update(_floats(getattr(ms, "station_value", None)))
+                elif hasattr(ctx, "mainstations"):
+                    for ms in ctx.mainstations:
+                        if getattr(ms, "axis_name", None) == ax_name:
+                            base.update(_floats(getattr(ms, "station_value", None)))
             except Exception:
                 pass
 
-        # optional: include ctx.mainstations for this axis here if you have them
-        # base.update(...)
+        # densify like before
+        b = sorted(base)
+        if len(b) < 2: 
+            return [round(v, 8) for v in b]
 
-        stations = base
-
-        # run the same densifier you already used (copy/paste your interpolate_segments)
-        def densify(breakpoints):
-            if len(breakpoints) < 2: 
-                return breakpoints
-            out = []
-            for a, b in zip(breakpoints[:-1], breakpoints[1:]):
-                dist = b - a
-                if dist <= 0: 
-                    continue
-                if   dist <   5: steps = 2
-                elif dist <  10: steps = 3
-                elif dist <  50: steps = 10
-                elif dist < 100: steps = 20
-                elif dist < 200: steps = 40
-                elif dist < 300: steps = 30
-                elif dist < 400: steps = 40
-                elif dist < 500: steps = 50
-                else:             steps = 500
-                step = dist / steps
-                out.extend(a + j*step for j in range(steps))
-            out.append(breakpoints[-1])
-            return [round(v, 8) for v in out]
-
-        return densify(stations)
+        out = []
+        for a, c in zip(b[:-1], b[1:]):
+            d = c - a
+            if   d <   5: n = 2
+            elif d <  10: n = 3
+            elif d <  50: n = 10
+            elif d < 100: n = 20
+            elif d < 200: n = 40
+            elif d < 300: n = 30
+            elif d < 400: n = 40
+            elif d < 500: n = 50
+            else:         n = 500
+            step = d / n
+            out.extend(a + j*step for j in range(n))
+        out.append(b[-1])
+        return [round(v, 8) for v in out]
 
 
     for vis_row in vis_objs_all:
@@ -1012,12 +1046,7 @@ if __name__ == "__main__":
         if axis is None:
             continue
 
-        if not stations_to_plot:
-            axis_stations = getattr(axis, "stations", None)
-            stations_to_plot = list(axis_stations) if axis_stations is not None else []
-        stations_m = [float(s) / 1000.0 for s in stations_to_plot]
-
-        #stations_m = smart_stations(obj, vis_row)  # meters (enriched + densified)
+        stations_m = smart_stations(obj, obj)  # meters
         geo = compute_object_geometry(
             obj, ctx=ctx, stations_m=stations_m,
             slices=getattr(obj, "slices", None),

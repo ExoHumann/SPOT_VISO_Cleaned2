@@ -7,6 +7,7 @@ import importlib
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Type, TYPE_CHECKING
 
+
 # --- IO helpers (your SPOT_Filters) -----------------------------------------
 try:
     # package-relative import
@@ -113,7 +114,7 @@ class SpotLoader:
         """
         path = self._resolve_candidate_path(candidate)
         if not path:
-            self._logger.debug("[SpotLoader] geometry not found in MASTER_SECTION: %r", candidate)
+            self._dbg("[SpotLoader] geometry not found in MASTER_SECTION: %r", candidate)
             return None
 
         cache = self._section_payload_cache  # class-level cache
@@ -124,13 +125,13 @@ class SpotLoader:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             cache[path] = data
-            self._logger.debug("[SpotLoader] loaded geometry JSON: %s  Points=%d Loops=%d",
+            self._dbg("[SpotLoader] loaded geometry JSON: %s  Points=%d Loops=%d",
                         os.path.basename(path),
                         len(data.get("Points") or []),
                         len(data.get("Loops") or []))
             return data
         except Exception as e:
-            self._logger.warning("[SpotLoader] failed reading %s: %s", path, e)
+            self._dbg("[SpotLoader] failed reading %s: %s", path, e)
             return None
 
 
@@ -216,7 +217,7 @@ class SpotLoader:
                     break
 
             if not payload:
-                self._logger.debug("[SpotLoader] no geometry for CrossSection ncs=%s name=%r  candidates=%s",
+                self._dbg("[SpotLoader] no geometry for CrossSection ncs=%s name=%r  candidates=%s",
                             ncs, getattr(cs, "name", ""), cand)
                 continue
 
@@ -230,11 +231,12 @@ class SpotLoader:
             # keep the whole blob if you want to debug later
             cs.json_data = payload
 
-            self._logger.debug("[SpotLoader] wired geometry for ncs=%s name=%r via %s  -> points=%d loops=%d",
-                        ncs, getattr(cs, "name", ""),
-                        used,
-                        len(cs.points or []),
-                        len(cs.loops or []))
+            self._dbg("wired geometry for ncs=%s name=%r via %s -> points=%d loops=%d" % (
+                ncs, getattr(cs, "name", ""),
+                used,
+                len(cs.points or []),
+                len(cs.loops or [])
+            ))
 
 
     # ------------------------------- public API ------------------------------ #
@@ -272,7 +274,7 @@ class SpotLoader:
         if self.verbose and json_files:
             self._dbg("Files:", json_files[:5], ("... ({} more)".format(max(0, len(json_files)-5)) if len(json_files) > 5 else ""))
 
-        return self  # <-- important for method chaining
+        return self
 
     def group_by_class(self) -> "SpotLoader":
         """
@@ -302,6 +304,7 @@ class SpotLoader:
                     self._dbg(f"    Row {i}: keys={list(row.keys())}")
 
         return self
+    
 
     def build_all_with_context(self, *, verbose: bool = True) -> "SpotLoader":
         """
@@ -327,7 +330,7 @@ class SpotLoader:
         mainstations,  _  = self._load_typed(MainStation,  ms_rows, axis_rows=axis_rows)
 
         # --- context (axes come from raw 'Axis' rows)
-        self.ctx = VisoContext.from_json(axis_rows, cross_sections, mainstations, mapping_cfg=MAP, verbose=False)
+        self.ctx = VisoContext.from_json(axis_rows, cross_sections, mainstations, mapping_cfg=MAP, verbose=True)
         if self.verbose:
             self._dbg("Context created:",
                       f"axes={len(self.ctx.axes_by_name)}",
@@ -367,6 +370,8 @@ class SpotLoader:
         self._maybe_set_raw_axisvars(self._pier_objects, pier_raw)
         self._maybe_set_raw_axisvars(self._foundation_objects, fnd_raw)
 
+        
+
         # --- wire + register everything
         # AxisVariable mapping (support both class-key and string-key)
         axis_var_map: Dict[str, Any] = {}
@@ -380,7 +385,6 @@ class SpotLoader:
         if self.verbose:
             self._dbg("AxisVariable mapping keys:", list(axis_var_map.keys()) if isinstance(axis_var_map, dict) else type(axis_var_map))
 
-        # spot_loader.py – after you’ve built ctx and registered objects
         self._enrich_cross_sections_with_geometry(self.ctx)
 
         self.ctx.add_objects(
@@ -390,7 +394,47 @@ class SpotLoader:
         self.ctx.add_objects(self._foundation_objects, self._bearing_objects, self._secondary_objects, self._materials, self._globals, axis_var_map=axis_var_map)
 
         # --- convenience array useful for visualisation/UIs
-        self.vis_objs = list(self._deck_objects) + list(self._pier_objects) + list(self._foundation_objects) + list(self._bearing_objects) + list(self._secondary_objects)
+        #self.vis_objs = list(self._deck_objects) + list(self._pier_objects) + list(self._foundation_objects) + list(self._bearing_objects) + list(self._secondary_objects)
+
+        all_objs = (
+            list(self._deck_objects)
+            + list(self._pier_objects)
+            + list(self._foundation_objects)
+        )
+
+        # 2) Inject axis by name and parse AxisVariables into objects (so they can compute on their own)
+        for o in all_objs:
+            # inject axis (ctx lookup by name)
+            ax_name = getattr(o, "axis_name", None) or getattr(o, "object_axis_name", None)
+            if ax_name:
+                ax = self.ctx.get_axis(ax_name)
+                if ax is not None:
+                    o.axis_obj = ax
+
+            # resolve cross-sections now (by NCS/name via ctx)
+            if hasattr(o, "_resolve_cross_sections_from_ncs"):
+                try:
+                    o._cross_sections = o._resolve_cross_sections_from_ncs(self.ctx)
+                except Exception:
+                    pass
+
+        # map setup for AxisVariable (your MAP can hold the field mapping)
+        try:
+            AxisVariable = self._maybe_cls("axis_variable", "AxisVariable")
+            axis_var_map = MAP.get(AxisVariable, {}) if AxisVariable in MAP else MAP.get("AxisVariable", {})
+        except Exception:
+            axis_var_map = MAP.get("AxisVariable", {})
+
+        for o in all_objs:
+            if hasattr(o, "set_axis_variables"):
+                try:
+                    o.set_axis_variables(axis_var_map)   # builds o.axis_variables_obj from o.axis_variables
+                except Exception as e:
+                    self._dbg(f"AxisVariable parse failed for {getattr(o,'name','?')}: {e}")
+
+
+        
+        self.vis_objs = all_objs
 
         if verbose or self.verbose:
             def _n(x): return len(x or [])
@@ -550,7 +594,7 @@ class SpotLoader:
                         kept_raw.append(r)
                 except Exception as e:
                     # Use logger to avoid crashing; this was previously using an invalid 'log.error'
-                    self._logger.error("Legacy DeckObject fallback failed for row %s: %s", idx, e)
+                    self._dbg("Legacy DeckObject fallback failed for row %s: %s", idx, e)
 
         return out, kept_raw
 

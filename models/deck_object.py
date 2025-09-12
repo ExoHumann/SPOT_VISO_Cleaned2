@@ -113,40 +113,68 @@ class DeckObject(BaseObject):
         negate_x: bool = True,
     ) -> Dict[str, object]:
         axis: Optional[Axis] = getattr(self, "axis_obj", None)
+        EMPTY = {
+            "ids": [], "stations_mm": np.array([], float),
+            "points_mm": np.zeros((0, 0, 3)),
+            "local_Y_mm": np.zeros((0, 0)),
+            "local_Z_mm": np.zeros((0, 0)),
+            "loops_idx": [],
+        }
         if axis is None:
-            return {"ids": [], "stations_mm": np.array([], float), "points_mm": np.zeros((0, 0, 3)), "local_Y_mm": np.zeros((0, 0)), "local_Z_mm": np.zeros((0, 0)), "loops_idx": []}
+            return EMPTY
 
         # Stations
         if stations_m is None:
-            # default to axis’ native stations (already mm)
             S = np.asarray(getattr(axis, "stations", []), float)
             stations_m = (S / 1000.0).tolist()
+        stations_m = [float(s) for s in (stations_m or [])]
+        if not stations_m:
+            return EMPTY
         stations_mm = np.asarray(stations_m, float) * 1000.0
 
         # Axis variables -> rows of {name: value}
-        axis_results = AxisVariable.evaluate_at_stations_cached(self.axis_variables_obj or [], stations_m)
+        axis_results = AxisVariable.evaluate_at_stations_cached(
+            getattr(self, "axis_variables_obj", []) or [], stations_m
+        )
 
-        # Choose a cross-section:
-        # – If your deck stores a cross-section name or NCS list, fetch it.
+        # Resolve a cross-section: prefer pre-resolved on the object, then ctx by name/NCS
         section: Optional[CrossSection] = None
-        if hasattr(ctx, "crosssec_by_name"):
-            for name in (self.cross_section_types or []):
+
+        # a) pre-resolved list on the object (from loader)
+        for cs in (getattr(self, "_cross_sections", None) or []):
+            if isinstance(cs, CrossSection):
+                section = cs
+                break
+
+        # b) by names/types in ctx
+        if section is None and hasattr(ctx, "crosssec_by_name"):
+            for name in (self.cross_section_names or []) + (self.cross_section_types or []):
                 section = ctx.crosssec_by_name.get(name)
-                if section: break
+                if section:
+                    break
+
+        # c) by NCS in ctx
         if section is None and hasattr(ctx, "crosssec_by_ncs"):
-            ncs_list = getattr(self, "cross_section_ncs", []) or []
-            if ncs_list:
-                section = ctx.crosssec_by_ncs.get(int(ncs_list[0]))
+            for ncs in (self.cross_section_ncs or []):
+                try:
+                    section = ctx.crosssec_by_ncs.get(int(ncs))
+                except Exception:
+                    section = None
+                if section:
+                    break
 
         if section is None:
-            return {"ids": [], "stations_mm": stations_mm, "points_mm": np.zeros((0, 0, 3)), "local_Y_mm": np.zeros((0, 0)), "local_Z_mm": np.zeros((0, 0)), "loops_idx": []}
+            return EMPTY
+
+        # Effective twist: object axis_rotation + caller override (no forced 90°)
+        twist_eff = float(getattr(self, "axis_rotation", 0.0) or 0.0) + float(twist_deg or 0.0)
 
         # Compute + embed
         ids, S_mm, P_mm, X_mm, Y_mm, loops_idx = section.compute_embedded_points(
             axis=axis,
             axis_var_results=axis_results,
             stations_m=stations_m,
-            twist_deg=float(twist_deg or 90.0),
+            twist_deg=twist_eff,
             negate_x=negate_x,
         )
         return {

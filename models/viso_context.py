@@ -127,6 +127,32 @@ class VisoContext:
     # -------------------------------------------------------------------------
     # Wiring & registration
     # -------------------------------------------------------------------------
+    def build_viso_row(obj, ctx, mapping_cfg):
+        # 1) Axis by name
+        ax_name = getattr(obj, "axis_name", None) or getattr(obj, "object_axis_name", None)
+        if ax_name:
+            ax = ctx.get_axis(ax_name)
+            if ax is not None and hasattr(obj, "axis_obj"):
+                obj.axis_obj = ax
+
+        # 2) Cross-sections by NCS
+        if hasattr(obj, "_resolve_cross_sections_from_ncs"):
+            obj._cross_sections = obj._resolve_cross_sections_from_ncs(ctx)
+
+        # 3) Axis variables -> objects
+        if hasattr(obj, "axis_variables") and hasattr(obj, "set_axis_variables"):
+            from models.axis_variable import AxisVariable
+            axis_var_map = mapping_cfg.get(AxisVariable, {}) if mapping_cfg else {}
+            obj.set_axis_variables(axis_var_map)
+
+        # 4) Return a vis row if you still render via the adapter
+        return obj.get_input_for_visualisation(
+            cross_section_objects=getattr(obj, "_cross_sections", None),
+            axis_rotation=getattr(obj, "axis_rotation", 0.0),
+            colors=getattr(obj, "colors", None),
+        )
+
+
     def wire_objects(self, objs: Iterable[Any], *, axis_var_map: dict) -> None:
         """Attach axis objects & promote raw axis-variables to AxisVariable objects."""
         for o in (objs or []):
