@@ -843,12 +843,6 @@ def memoize_on_object(obj, key, builder):
         cache[key] = builder()
     return cache[key]
 
-# NEW (or confirm they exist)
-from models import PierObject
-from models import DeckObject
-from models import FoundationObject
-# CrossSection is only needed if you directly poke it elsewhere
-from models import CrossSection
 
 # main.py
 
@@ -886,10 +880,9 @@ if __name__ == "__main__":
     ctx = loader.ctx
     vis_objs_all = loader.vis_objs
 
-    # CrossSection checks — replace the old _safe_* calls:
     for ncs, cs in ctx.crosssec_by_ncs.items():
         npts, nloops = cs.geometry_counts()
-        print(f"[check] {getattr(cs,'name','?')} (ncs={ncs}) -> points={npts}, loops={nloops}")
+        print(f"[check] {getattr(cs,'name','?')} (ncs={ncs}) -> points={npts}, loops={nloops}, json={bool(cs.json_data)}")
 
 
     def compute_object_geometry(obj, ctx, stations_m=None, slices=None, twist_deg=0.0, negate_x=True):
@@ -1046,7 +1039,8 @@ if __name__ == "__main__":
         if axis is None:
             continue
 
-        stations_m = smart_stations(obj, obj)  # meters
+        stations_m = smart_stations(obj, ctx=ctx)  # instead of smart_stations(obj, obj)
+
         geo = compute_object_geometry(
             obj, ctx=ctx, stations_m=stations_m,
             slices=getattr(obj, "slices", None),

@@ -12,7 +12,7 @@ from abc import ABC
 from functools import lru_cache
 from dataclasses import dataclass, field
 from typing import ClassVar
-from Utils import _compile_expr, _sanitize_vars, _SCALAR_FUNCS, _VECTOR_FUNCS
+from utils import _compile_expr, _sanitize_vars, _SCALAR_FUNCS, _VECTOR_FUNCS
 
 logger = logging.getLogger(__name__)
 # Turn on detailed traces with: logging.basicConfig(level=logging.DEBUG)

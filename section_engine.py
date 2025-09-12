@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 
 # Reuse your existing utilities
-from Utils import (
+from utils import (
     _RESERVED_FUNC_NAMES,
     _VECTOR_FUNCS,
     _sanitize_vars,

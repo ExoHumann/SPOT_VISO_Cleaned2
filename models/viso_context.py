@@ -239,6 +239,10 @@ class VisoContext:
     # -------------------------------------------------------------------------
     # Lookups
     # -------------------------------------------------------------------------
+    def has_axis(self, name: str) -> bool:
+        return _norm(name) in self.axes_by_name
+
+
     def get_axis(self, name: str) -> Optional["Axis"]:
         return self.axes_by_name.get(_norm(name))
 

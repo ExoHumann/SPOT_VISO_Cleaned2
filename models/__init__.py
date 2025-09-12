@@ -39,7 +39,7 @@ _EXPORT_MAP = {
     "SecondaryObject": "models.secondary_object",
     "MainStation": "models.main_station",
     "VisoContext": "models.viso_context",
-
+    "Utils": "utils",
     # Base + helpers
     "BaseObject": "models.base",
     "load_from_json": "models.base",

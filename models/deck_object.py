@@ -105,83 +105,153 @@ class DeckObject(BaseObject):
     # New: Deck geometry (2D local -> 3D embedded)
     # ------------------------------------------------------------
     def compute_geometry(
-        self,
-        *,
-        ctx,                                # VisoContext
-        stations_m: Optional[List[float]] = None,
-        twist_deg: float = 0.0,
-        negate_x: bool = True,
-    ) -> Dict[str, object]:
+    self,
+    *,
+    ctx,                                # VisoContext
+    stations_m: Optional[List[float]] = None,
+    twist_deg: float = 0.0,
+    negate_x: bool = True,
+) -> Dict[str, object]:
+        """
+        Compute 3D geometry for this object:
+        - picks stations (or uses given),
+        - evaluates axis variables at those stations,
+        - picks which CrossSection applies at each station (schedule/names/NCS),
+        - runs CrossSection.compute_embedded_points in contiguous batches,
+        - concatenates the results along stations.
+
+        Returns:
+        dict(ids, stations_mm, points_mm, local_Y_mm, local_Z_mm, loops_idx)
+        """
         axis: Optional[Axis] = getattr(self, "axis_obj", None)
         EMPTY = {
-            "ids": [], "stations_mm": np.array([], float),
-            "points_mm": np.zeros((0, 0, 3)),
-            "local_Y_mm": np.zeros((0, 0)),
-            "local_Z_mm": np.zeros((0, 0)),
+            "ids": [],
+            "stations_mm": np.array([], float),
+            "points_mm": np.zeros((0, 0, 3), float),
+            "local_Y_mm": np.zeros((0, 0), float),
+            "local_Z_mm": np.zeros((0, 0), float),
             "loops_idx": [],
         }
         if axis is None:
             return EMPTY
 
-        # Stations
+        # ---- Stations (meters) -------------------------------------------------
         if stations_m is None:
-            S = np.asarray(getattr(axis, "stations", []), float)
+            S = np.asarray(getattr(axis, "stations", []), dtype=float)
             stations_m = (S / 1000.0).tolist()
         stations_m = [float(s) for s in (stations_m or [])]
         if not stations_m:
             return EMPTY
-        stations_mm = np.asarray(stations_m, float) * 1000.0
 
-        # Axis variables -> rows of {name: value}
+        # ---- Axis variables: per-station dict rows -----------------------------
         axis_results = AxisVariable.evaluate_at_stations_cached(
             getattr(self, "axis_variables_obj", []) or [], stations_m
         )
 
-        # Resolve a cross-section: prefer pre-resolved on the object, then ctx by name/NCS
-        section: Optional[CrossSection] = None
+        # ---- Decide which section to use per station ---------------------------
+        # You can expose a schedule like:
+        #   self.section_schedule = [{"station_m": 0.0, "ncs": 111}, {"station_m": 45.0, "name": "MASTER_Pier"}, ...]
+        sec_per_station: List[Optional[CrossSection]] = _sections_for_stations(
+            ctx,
+            stations_m,
+            schedule=getattr(self, "section_schedule", None),
+            names=getattr(self, "cross_section_names", None),
+            ncs_list=getattr(self, "cross_section_ncs", None),
+        )
 
-        # a) pre-resolved list on the object (from loader)
-        for cs in (getattr(self, "_cross_sections", None) or []):
-            if isinstance(cs, CrossSection):
-                section = cs
-                break
+        # Fallback: if nothing resolved, try any pre-resolved _cross_sections list or a single ctx fallback
+        if not any(sec_per_station):
+            # a) pre-resolved on the object
+            pre = next((cs for cs in (getattr(self, "_cross_sections", None) or []) if isinstance(cs, CrossSection)), None)
+            # b) by name/type
+            if pre is None and hasattr(ctx, "crosssec_by_name"):
+                for nm in (getattr(self, "cross_section_names", None) or []) + (getattr(self, "cross_section_types", None) or []):
+                    pre = ctx.crosssec_by_name.get(nm)
+                    if pre:
+                        break
+            # c) by NCS
+            if pre is None and hasattr(ctx, "crosssec_by_ncs"):
+                for ncs in (getattr(self, "cross_section_ncs", None) or []):
+                    try:
+                        pre = ctx.crosssec_by_ncs.get(int(ncs))
+                    except Exception:
+                        pre = None
+                    if pre:
+                        break
+            if pre:
+                sec_per_station = [pre] * len(stations_m)
 
-        # b) by names/types in ctx
-        if section is None and hasattr(ctx, "crosssec_by_name"):
-            for name in (self.cross_section_names or []) + (self.cross_section_types or []):
-                section = ctx.crosssec_by_name.get(name)
-                if section:
-                    break
-
-        # c) by NCS in ctx
-        if section is None and hasattr(ctx, "crosssec_by_ncs"):
-            for ncs in (self.cross_section_ncs or []):
-                try:
-                    section = ctx.crosssec_by_ncs.get(int(ncs))
-                except Exception:
-                    section = None
-                if section:
-                    break
-
-        if section is None:
+        # If we still have no section at all, return empty
+        if not any(sec_per_station):
             return EMPTY
 
-        # Effective twist: object axis_rotation + caller override (no forced 90°)
+        # ---- Effective twist (object's axis_rotation + caller) -----------------
         twist_eff = float(getattr(self, "axis_rotation", 0.0) or 0.0) + float(twist_deg or 0.0)
 
-        # Compute + embed
-        ids, S_mm, P_mm, X_mm, Y_mm, loops_idx = section.compute_embedded_points(
-            axis=axis,
-            axis_var_results=axis_results,
-            stations_m=stations_m,
-            twist_deg=twist_eff,
-            negate_x=negate_x,
-        )
+        # ---- Batch by contiguous section to minimize calls ---------------------
+        def _flush_batch(cs: CrossSection, i0: int, i1: int):
+            # slice of stations and axis_results for [i0, i1)
+            sm_slice = stations_m[i0:i1]
+            ar_slice = axis_results[i0:i1]
+            if not sm_slice:
+                return None
+            ids, S_mm, P_mm, X_mm, Y_mm, loops_idx = cs.compute_embedded_points(
+                axis=axis,
+                axis_var_results=ar_slice,
+                stations_m=sm_slice,
+                twist_deg=90,
+                negate_x=negate_x,
+            )
+            return (ids, S_mm, P_mm, X_mm, Y_mm, loops_idx)
+
+        out_ids = None
+        out_loops = None
+        stations_all = []
+        P_all = []
+        X_all = []
+        Y_all = []
+
+        i = 0
+        N = len(stations_m)
+        while i < N:
+            cs_i = sec_per_station[i]
+            if cs_i is None:
+                i += 1
+                continue
+            j = i + 1
+            # extend while the section object remains the same
+            while j < N and sec_per_station[j] is cs_i:
+                j += 1
+
+            res = _flush_batch(cs_i, i, j)
+            if res is not None:
+                ids, S_mm, P_mm, X_mm, Y_mm, loops_idx = res
+                # Keep ids/loops from the first non-empty batch; if later batches differ, we keep the first
+                if out_ids is None and ids:
+                    out_ids = ids
+                    out_loops = loops_idx
+                # Accumulate along station dimension
+                stations_all.append(np.asarray(S_mm, dtype=float))
+                P_all.append(np.asarray(P_mm, dtype=float))
+                X_all.append(np.asarray(X_mm, dtype=float))
+                Y_all.append(np.asarray(Y_mm, dtype=float))
+
+            i = j
+
+        if not P_all:
+            return EMPTY
+
+        stations_mm = np.concatenate(stations_all, axis=0) if len(stations_all) > 1 else stations_all[0]
+        points_mm   = np.concatenate(P_all,       axis=0) if len(P_all)       > 1 else P_all[0]
+        local_X     = np.concatenate(X_all,       axis=0) if len(X_all)       > 1 else X_all[0]
+        local_Y     = np.concatenate(Y_all,       axis=0) if len(Y_all)       > 1 else Y_all[0]
+
         return {
-            "ids": ids,
-            "stations_mm": S_mm,
-            "points_mm": P_mm,
-            "local_Y_mm": X_mm,
-            "local_Z_mm": Y_mm,
-            "loops_idx": loops_idx,
+            "ids":        out_ids or [],
+            "stations_mm": stations_mm,
+            "points_mm":   points_mm,
+            # NOTE: CrossSection returns (X_mm==local Y, Y_mm==local Z) by convention.
+            "local_Y_mm":  local_X,
+            "local_Z_mm":  local_Y,
+            "loops_idx":   out_loops or [],
         }

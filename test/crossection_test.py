@@ -1,30 +1,79 @@
+# test_cross_section.py
+# This script allows loading a sectiondata.json file (or in-memory string),
+# creates a CrossSection object, attaches the JSON payload,
+# and runs tests on compute_local_points with single and multiple stations.
+
 from __future__ import annotations
-# models/cross_section.py
 import ast
-from dataclasses import dataclass, field
-from functools import lru_cache
-import hashlib
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+import json
+import os
+import logging
 import math
 import numpy as np
-import logging
-import json, os
-# models/cross_section.py
-from utils import _compile_expr, _sanitize_vars, _SCALAR_FUNCS, _VECTOR_FUNCS, _RESERVED_FUNC_NAMES
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple, Union
+from collections import deque
 
+# scalar (math) and vector (numpy) function maps
+_SCALAR_FUNCS = {
+    'COS': math.cos, 'SIN': math.sin, 'TAN': math.tan,
+    'ACOS': math.acos, 'ASIN': math.asin, 'ATAN': math.atan,
+    'cos': math.cos, 'sin': math.sin, 'tan': math.tan,
+    'acos': math.acos, 'asin': math.asin, 'atan': math.atan,
+    'LOG': math.log, 'EXP': math.exp, 'SQRT': math.sqrt, 'ABS': abs,
+    'log': math.log, 'exp': math.exp, 'sqrt': math.sqrt, 'abs': abs,
+    'PI': math.pi, 'Pi': math.pi, 'pi': math.pi,
+}
+_VECTOR_FUNCS = {
+    'COS': np.cos, 'SIN': np.sin, 'TAN': np.tan,
+    'ACOS': np.arccos, 'ASIN': np.arcsin, 'ATAN': np.arctan,
+    'cos': np.cos, 'sin': np.sin, 'tan': np.tan,
+    'acos': np.arccos, 'asin': np.arcsin, 'atan': np.arctan,
+    'LOG': np.log, 'EXP': np.exp, 'SQRT': np.sqrt, 'ABS': np.abs,
+    'log': np.log, 'exp': np.exp, 'sqrt': np.sqrt, 'abs': np.abs,
+    'PI': np.pi, 'Pi': np.pi, 'pi': np.pi, "deg2rad": np.deg2rad, "rad2deg": np.rad2deg,
+}
 
+# prevent variable names from shadowing function names
+_RESERVED_FUNC_NAMES = set(_SCALAR_FUNCS.keys()) | set(_VECTOR_FUNCS.keys())
+
+_ALLOWED_AST = (
+    ast.Expression, ast.BinOp, ast.UnaryOp, ast.Num, ast.Constant, ast.Name, ast.Load,
+    ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod, ast.FloorDiv, ast.USub, ast.UAdd, ast.Call
+)
+
+def _clean_expr(expr: str) -> str:
+    s = str(expr).strip()
+    # 1) allow a leading unary '+'
+    if s.startswith('+'):
+        s = s[1:].lstrip()
+    # 2) caret → python power (if you ever see ^)
+    s = s.replace('^', '**')
+    return s
+
+_ALLOWED_FUNC_NAMES = set(_SCALAR_FUNCS.keys()) | set(_VECTOR_FUNCS.keys())
+
+def _compile_expr(expr_text: str):
+    expr_text = _clean_expr(expr_text)
+    node = ast.parse(str(expr_text), mode='eval')
+    for n in ast.walk(node):
+        if not isinstance(n, _ALLOWED_AST):
+            raise ValueError(f"Disallowed expression: {expr_text}")
+        if isinstance(n, ast.Call):
+            if not isinstance(n.func, ast.Name) or n.func.id not in _ALLOWED_FUNC_NAMES:
+                raise ValueError(f"Disallowed function: {getattr(n.func, 'id', '?')}")
+    return compile(node, "<expr>", "eval")
+
+def _sanitize_vars(variables: dict) -> dict:
+    # drop keys that would shadow functions/constants
+    return {k: v for k, v in (variables or {}).items() if k not in _RESERVED_FUNC_NAMES}
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)  # Set to DEBUG for more output
 
-
-# ---------- small helpers (robust to many JSON shapes) ----------
+# Helper functions
 def _deep_find_first(obj, key_names):
-    """
-    BFS search for the first list under any key matching one of key_names
-    (case-insensitive). Returns (value, key_path_str) or (None, None).
-    """
     key_names = {k.lower() for k in key_names}
-    from collections import deque
     dq = deque([([], obj)])
     while dq:
         path, cur = dq.popleft()
@@ -39,13 +88,6 @@ def _deep_find_first(obj, key_names):
     return None, None
 
 def _as_point_id_list(seq):
-    """
-    Accept loop 'Points' shapes like:
-    - list of dicts with any of: Id, id, PointName, Name, PointId, PointID
-    - list of strings
-    - list of numbers
-    Returns list[str]
-    """
     out = []
     for p in (seq or []):
         if isinstance(p, dict):
@@ -58,16 +100,9 @@ def _as_point_id_list(seq):
     return [s for s in out if s]
 
 def _normalize_loops_value(value):
-    """
-    Given whatever we found under Loops/Contours/Polygons/etc., normalize to:
-      List[List[str]]  (each inner list is the ordered point ids for one loop)
-    """
     loops = []
-
     if not isinstance(value, list):
         return loops
-
-    # Case A: vanilla [{"Points":[...]}, ...]
     if value and all(isinstance(x, dict) for x in value):
         for item in value:
             pts = item.get("Points") or item.get("Point") or item.get("Vertices") or item.get("Ids")
@@ -79,34 +114,23 @@ def _normalize_loops_value(value):
                 loops.append(_as_point_id_list(item["Ring"]))
         if loops:
             return loops
-
-    # Case B: directly a list of lists (each is a loop)
     if value and all(isinstance(x, list) for x in value):
         for seq in value:
             loops.append(_as_point_id_list(seq))
         return loops
-
-    # Case C: list of dicts, where each dict is itself a loop mapping of index->point
     if value and all(isinstance(x, dict) for x in value):
         for item in value:
-            # try any obvious fields again
             pts = item.get("Points") or item.get("Point") or item.get("Vertices") or item.get("Ids")
             if pts:
                 loops.append(_as_point_id_list(pts))
     return loops
 
 def _points_to_table(value: Any) -> Dict[str, Dict[str, Any]]:
-    """
-    Normalize "Points" to a dict: {id: {...raw point dict...}}
-    Accepts dict or list-of-dicts.
-    """
-    out: Dict[str, Dict[str, Any]] = {}
+    out = {}
     if isinstance(value, dict):
-        # Already {id: {...}}
         for pid, row in value.items():
             out[str(pid)] = row if isinstance(row, dict) else {"Raw": row}
         return out
-
     if isinstance(value, list):
         for row in value:
             if not isinstance(row, dict):
@@ -117,26 +141,9 @@ def _points_to_table(value: Any) -> Dict[str, Dict[str, Any]]:
                 out[str(pid)] = row
     return out
 
-
+# CrossSection class
 @dataclass(kw_only=True)
 class CrossSection:
-    """
-    CrossSection now *owns* all 2D point evaluation:
-
-    - Variable defaults
-    - DAG build & topological sort
-    - Vectorized expression evaluation
-    - (Deprecated) scalar reference frame paths
-    - Vectorized local frame transforms (C/Euclid, P/Polar, CY, CZ)
-    - Public API:
-        get_defaults()
-        build_dag()
-        eval_expressions_vectorized(...)
-        get_coordinates_vectorized(...)
-        compute_local_points(...)              -> (ids, X_mm, Y_mm, loops_idx)
-        compute_local_points_scalar(...)       -> legacy single-slice path
-        compute_embedded_points(...)           -> (ids, stations_mm, P_mm, X_mm, Y_mm, loops_idx)
-    """
     no: Optional[str] = None
     class_name: Optional[str] = None
     type: Optional[str] = None
@@ -147,32 +154,21 @@ class CrossSection:
     material1: Optional[int] = None
     material2: Optional[int] = None
     material_reinf: Optional[int] = None
-    json_name: Union[str, List[str], None] = None      # e.g. "SectionData.json" or ["A.json","B.json"]
-    points: Union[List[Dict[str, Any]], Dict[str, Any], None] = None  # optional inline points
+    json_name: Union[str, List[str], None] = None
+    points: Union[List[Dict[str, Any]], Dict[str, Any], None] = None
     variables: Union[List[Dict[str, Any]], Dict[str, Any], None] = None
     sofi_code: str | None = None
     cross_section_types: list[str] | None = None
     axis_variables: list | None = None
 
-    # runtime / enrichment
     json_data: Optional[Dict[str, Any]] = field(default=None, init=False, repr=False)
     json_source: Optional[str] = field(default=None, init=False, repr=False)
 
-    # caches
     _loops_cache: Dict[Tuple[str, ...], List[np.ndarray]] = field(default_factory=dict, init=False, repr=False)
-    # cached parse (by object identity)
     _dag_cache_key: Optional[str] = field(default=None, init=False, repr=False)
     _dag_cache_val: Optional[Tuple[List[str], Dict[str, dict]]] = field(default=None, init=False, repr=False)
-    #_dag_order: List[str] = field(default_factory=list, init=False, repr=False)
-    #_dag_by_id: Dict[str, dict] = field(default_factory=dict, init=False, repr=False)
-    _loops_cache: Dict[Tuple[str, ...], List[np.ndarray]] = field(default_factory=dict, init=False, repr=False)
 
-
-    
-
-    # ---------- basic hygiene ----------
     def __post_init__(self) -> None:
-        # Coerce numerics if present
         try:
             if self.ncs is not None and str(self.ncs).strip() != "":
                 self.ncs = int(self.ncs)
@@ -187,32 +183,11 @@ class CrossSection:
             except Exception:
                 logger.debug("CrossSection(%r): failed to int(%s=%r)", self.name, attr, v)
 
-    # ---------- defaults / variables ----------
-
-    def prime_caches(self) -> None:
-        # ensure points exist if JSON is present
-        if not (isinstance(self.points, list) and self.points) and isinstance(self.json_data, dict):
-            self.inflate_points_from_json()
-
-        if not (isinstance(self.points, list) and self.points):
-            return
-
-        # build DAG once
-        order, by_id = self.build_dag()
-        self._dag_cache_key = self._dag_key_for_identity(self._dag_identity_tuple())
-        self._dag_cache_val = (order, by_id)
-
-
     def get_defaults(self) -> Dict[str, float]:
-        """
-        Variable defaults in mm. Prefer JSON->Variables; fallback to row->variables.
-        Supports dict or list-of-dicts [{'VariableName','VariableValue'}, ...]
-        """
-        # Prefer attached JSON
         if isinstance(self.json_data, dict):
             vars_dict = self.json_data.get("Variables")
             if isinstance(vars_dict, dict):
-                out: Dict[str, float] = {}
+                out = {}
                 for k, v in vars_dict.items():
                     try:
                         out[str(k)] = float(v)
@@ -221,8 +196,7 @@ class CrossSection:
                 if out:
                     return out
 
-        # Fallback to row field
-        out: Dict[str, float] = {}
+        out = {}
         raw = self.variables or {}
         if isinstance(raw, dict):
             for k, v in raw.items():
@@ -241,9 +215,7 @@ class CrossSection:
                     pass
         return out
 
-    # ---------- geometry attach / read ----------
     def attach_json_payload(self, payload: Dict[str, Any], source: Optional[str] = None) -> None:
-        """Attach a section JSON payload (already read)."""
         if not isinstance(payload, dict):
             return
         self.json_data = payload
@@ -254,10 +226,6 @@ class CrossSection:
         )
 
     def _raw_points_and_loops(self) -> Tuple[Dict[str, Dict[str, Any]], List[List[str]]]:
-        """
-        Find 'Points' and 'Loops' from either attached JSON or inline row fields.
-        Returns (points_table, loops_ids)
-        """
         root = self.json_data if isinstance(self.json_data, dict) else (self.points or {})
         pts_val, _ = _deep_find_first(root, ["Points", "points"])
         lps_val, _ = _deep_find_first(root, ["Loops", "Contours", "Polygons", "Rings", "Boundaries"])
@@ -267,27 +235,16 @@ class CrossSection:
 
         return points_table, loops_ids
 
-    # lightweight summary hooks (used by your loader/enricher)
     def has_geometry(self) -> bool:
         points_table, loops_ids = self._raw_points_and_loops()
         return bool(points_table) and bool(loops_ids)
 
     def geometry_counts(self) -> Tuple[int, int]:
-        """(n_points, n_loops) for logging/diagnostics."""
         points_table, loops_ids = self._raw_points_and_loops()
         return len(points_table), len(loops_ids)
 
-    # convenience constructor for safety
     @classmethod
-    def from_row(
-        cls,
-        row: Dict[str, Any],
-        *,
-        json_loader: Optional[Callable[[str], Dict]] = None,
-        default_json_by_type: Optional[Dict[str, List[str]]] = None,
-        debug: bool | None = None,
-    ) -> "CrossSection":
-        # --- 1) Basic fields (NO row->points here) ---
+    def from_row(cls, row: Dict[str, Any]) -> "CrossSection":
         kw = {
             "no": row.get("No"),
             "class_name": row.get("Class") or row.get("class_name"),
@@ -301,89 +258,12 @@ class CrossSection:
             "material_reinf": row.get("Material_Reinf"),
             "json_name": row.get("JSON_name") or row.get("JsonName") or row.get("json_name"),
             "sofi_code": row.get("SofiCode") or row.get("SOFiCode") or row.get("SOFiSTiKCustomCode"),
+            "points": row.get("Points"),
             "variables": row.get("Variables"),
             "cross_section_types": row.get("cross_section_types") or row.get("CrossSection_Types"),
             "axis_variables": row.get("axis_variables") or row.get("AxisVariables"),
         }
-        obj = cls(**{k: v for k, v in kw.items() if v is not None})
-
-        # keep legacy row points only for inspection
-        setattr(obj, "_row_points_shadow", row.get("Points"))
-
-        # --- 2) Normalize json_name -> list[str] with sensible fallback by type ---
-        paths = row.get("JSON_name") or row.get("JsonName") or row.get("json_name")
-        if paths is None:
-            table = default_json_by_type or DEFAULT_JSON_BY_TYPE  # your existing table
-            typ = (row.get("Type") or "").strip()
-            paths = list(table.get(typ, []))
-        elif isinstance(paths, str):
-            paths = [paths]
-
-        # --- 3) Attach the first usable JSON and inflate points ---
-        if json_loader is None:
-            def json_loader(pth: str) -> Dict:
-                try:
-                    with open(pth, "r", encoding="utf-8") as f:
-                        return json.load(f)
-                except Exception:
-                    return {}
-
-        for rel in (paths or []):
-            js = json_loader(rel) or {}
-            # accept schemas that actually carry geometry
-            if isinstance(js, dict) and any(k in js for k in ("Points", "Loops", "Contours", "Polygons")):
-                obj.attach_json_payload(js, source=rel)
-                obj.inflate_points_from_json()   # <-- now self.points contains loop refs
-                break
-
-        return obj
-
-
-
- 
-    # -------------------------------------------------------------------------
-    # Defaults / variables
-    # -------------------------------------------------------------------------
-
-    # def get_defaults(self) -> Dict[str, float]:
-    #     """
-    #     Read variable defaults either from attached json_data['Variables'] (preferred)
-    #     or from the dataclass 'variables' field (list/dict). Values are floats in mm.
-    #     """
-    #     # 1) Master JSON attached (preferred)
-    #     jd = getattr(self, "json_data", None)
-    #     if isinstance(jd, dict) and isinstance(jd.get("Variables"), dict):
-    #         out = {}
-    #         for k, v in (jd.get("Variables") or {}).items():
-    #             try:
-    #                 out[str(k)] = float(v)
-    #             except Exception:
-    #                 pass
-    #         if out:
-    #             return out
-
-    #     # 2) Fallback to the dataclass field `variables`
-    #     defaults: Dict[str, float] = {}
-    #     raw = (self.variables or {}) or {}
-    #     if isinstance(raw, dict):
-    #         for k, v in raw.items():
-    #             try:
-    #                 defaults[str(k)] = float(v)
-    #             except Exception:
-    #                 pass
-    #     else:
-    #         # list-of-dicts [{VariableName, VariableValue}, ...]
-    #         for row in raw or []:
-    #             try:
-    #                 n = str(row.get("VariableName"))
-    #                 defaults[n] = float(row.get("VariableValue", 0.0) or 0.0)
-    #             except Exception:
-    #                 pass
-    #     return defaults
-
-    # -------------------------------------------------------------------------
-    # DAG build (topological sort for point dependencies)
-    # -------------------------------------------------------------------------
+        return cls(**{k: v for k, v in kw.items() if v is not None})
 
     @staticmethod
     def _pick_expr(expr_val, numeric_val):
@@ -394,121 +274,93 @@ class CrossSection:
             return str(numeric_val)
         return txt
 
-    @staticmethod
-    def _normalize_point_row(p: dict) -> dict:
-        """Return {Id:str, Coord:[str,str], Reference:list[str], ReferenceType:str?} from many shapes."""
-        # Already canonical?
+    def _normalize_point_row(self, p: dict) -> dict:
         if "Id" in p and ("Coord" in p or "coord" in p):
             pid = str(p.get("Id"))
             coord = p.get("Coord") or p.get("coord") or [0, 0]
-            ref   = p.get("Reference") or p.get("reference") or []
-            rtype = p.get("ReferenceType") or p.get("Type")
-            return {"Id": pid, "Coord": [str(coord[0]), str(coord[1])], "Reference": list(ref), "ReferenceType": rtype}
+            ref = p.get("Reference") or p.get("reference") or []
+            return {"Id": pid, "Coord": [str(coord[0]), str(coord[1])], "Reference": list(ref)}
 
-        # Legacy row shape: PointName, CoorY, CoorZ (+ *_Val fallbacks)
         pid = str(p.get("PointName") or p.get("Id") or p.get("id") or "")
-        def pick(expr, val):
-            txt = str(expr) if expr is not None else ""
-            if not txt or txt.strip().lower().startswith("error"):
-                if val is None or str(val).strip() == "":
-                    return "0"
-                return str(val)
-            return txt
-        y_expr = pick(p.get("CoorY"), p.get("CoorYVal"))
-        z_expr = pick(p.get("CoorZ"), p.get("CoorZVal"))
-        ref    = p.get("Reference") or p.get("reference") or []
-        rtype  = p.get("ReferenceType") or p.get("Type")
-        return {"Id": pid, "Coord": [y_expr, z_expr], "Reference": list(ref), "ReferenceType": rtype}
+        y_expr = self._pick_expr(p.get("CoorY"), p.get("CoorYVal"))
+        z_expr = self._pick_expr(p.get("CoorZ"), p.get("CoorZVal"))
+        ref = p.get("Reference") or p.get("reference") or []
+        return {"Id": pid, "Coord": [y_expr, z_expr], "Reference": list(ref)}
 
-
-    # # POINTS (you already had something similar)
-    # def _safe_points_list(self):
-    #     # Prefer attached JSON (has proper Coord & References in loops)
-    #     if isinstance(self.json_data, dict):
-    #         pv = self.json_data.get("Points") or self.json_data.get("points")
-    #         if isinstance(pv, list) and pv:
-    #             return pv
-    #     # Only use self.points if JSON truly absent
-    #     return self.points if isinstance(self.points, list) else []
+    def _safe_points_list(self):
+        pts = getattr(self, "points", None)
+        if isinstance(pts, list) and pts:
+            return pts
+        jd = getattr(self, "json_data", None)
+        if isinstance(jd, dict):
+            pv = jd.get("Points") or jd.get("points")
+            if isinstance(pv, list) and pv:
+                return pv
+        return []
 
     def _safe_loops_list(self):
-        """
-        Always search loops in attached json_data (Loops/Contours/Polygons/...).
-        Returns canonical [{"Points":[{"Id":...}, ...]}, ...].
-        """
-        jd = getattr(self, "json_data", None)
-        if not isinstance(jd, dict):
-            return []
-        raw_loops, picked_path = _deep_find_first(
-            jd, ["Loops","Loop","Contours","Polygons","Rings","Boundaries","LoopPoints","LoopList"]
-        )
-        if not raw_loops:
-            return []
-        loop_lists = _normalize_loops_value(raw_loops)
-        return [{"Points": [{"Id": pid} for pid in seq]} for seq in loop_lists]
+        loops_attr = getattr(self, "loops", None)
+        if isinstance(loops_attr, list) and loops_attr:
+            return loops_attr
 
+        jd = getattr(self, "json_data", None)
+        if jd is None:
+            return []
+
+        candidates = ("Loops","Loop","Contours","Polygons","Rings","Boundaries","LoopPoints","LoopList")
+        raw_loops, picked_path = _deep_find_first(jd, candidates)
+        if not raw_loops:
+            keys = list(jd.keys()) if isinstance(jd, dict) else type(jd).__name__
+            logger.info(f"[loops] No loops found for {getattr(self,'name','?')} in json_data. Top-level keys: {keys}")
+            return []
+
+        loop_lists = _normalize_loops_value(raw_loops)
+        if not loop_lists:
+            logger.info(f"[loops] Found '{picked_path}' for {getattr(self,'name','?')}, but could not normalize.")
+            return []
+
+        out = []
+        for seq in loop_lists:
+            out.append({"Points": [{"Id": pid} for pid in seq]})
+        logger.info(f"[loops] {getattr(self,'name','?')} -> picked '{picked_path}', loops={len(out)}")
+        return out
 
     def _collect_all_points(self) -> List[dict]:
-        """Collect & normalize all point-like defs (Points, Loops, Reinforcements, Zones)."""
-        pts, seen = [], set()
+        out = []
+        for p in self._safe_points_list():
+            try:
+                norm = self._normalize_point_row(p)
+                if norm.get("Id"):
+                    out.append(norm)
+            except Exception:
+                pass
 
-        data = self.json_data if isinstance(self.json_data, dict) else {}
-        def add(p):
-            if not isinstance(p, dict): 
-                return
-            q = self._normalize_point_row(p)
-            pid = q.get("Id")
-            if pid and pid not in seen:
-                seen.add(pid)
-                pts.append(q)
+        for lp in self._safe_loops_list():
+            for p in (lp.get("Points") or []):
+                try:
+                    norm = self._normalize_point_row(p)
+                    if norm.get("Id"):
+                        out.append(norm)
+                except Exception:
+                        pass
 
-        # Top-level points
-        for item in (data.get("Points") or []):
-            add(item)
+        logger.info("Collected %d points in section %s", len(out), getattr(self, "name", "?"))
+        logger.info(" Points: %s", [p.get("Id") for p in out])
+        logger.info(" Loops: %d in section %s", len(self._safe_loops_list()), getattr(self, "name", "?"))
 
-        # Loops
-        for loop in (data.get("Loops") or []):
-            for item in (loop.get("Points") or []):
-                add(item)
-
-        # Reinforcements
-        for pr in (data.get("PointReinforcements") or []):
-            add(pr.get("Point", {}))
-        for lr in (data.get("LineReinforcements") or []):
-            add(lr.get("PointStart", {}))
-            add(lr.get("PointEnd", {}))
-
-        # Non-effective zones
-        for nez in (data.get("NonEffectiveZones") or []):
-            add(nez.get("PointStart", {}))
-            add(nez.get("PointEnd", {}))
-
-        return pts
-
-    
-    def _safe_points_list(self):
-        """
-        Resolve where points live on this CrossSection. We try a few common spots.
-        Must return a list of dicts with at least {'Id': ..., 'Coord': [x_expr, y_expr]}.
-        """
-        pts = getattr(self, "points", None)
-        if pts is None:
-            # some codebases keep the raw JSON as self.json_data
-            j = getattr(self, "json_data", None)
-            if isinstance(j, dict):
-                pts = j.get("Points")
-
-            # in CrossSection._safe_points_list/_safe_loops_list
-            # j = getattr(self, "json_data", None)
-            # if isinstance(j, dict):
-            #     pts = j.get("Points")
-            #     loops = j.get("Loops")
-
-        return pts or []
+        seen = set()
+        uniq = []
+        for p in out:
+            pid = p.get("Id")
+            if pid in seen:
+                continue
+            seen.add(pid)
+            uniq.append(p)
+        return uniq
 
     def _dag_identity_tuple(self):
         ncs = int(getattr(self, "ncs", -1))
-        pts = self.points
+        pts = self._collect_all_points()
         pts_tup = tuple(sorted(
             (
                 str(p.get("Id")),
@@ -520,47 +372,31 @@ class CrossSection:
         ))
         loops = self._safe_loops_list()
         loops_tup = tuple(sorted(
-            (tuple(str(pp.get("Id")) for pp in (lp.get("Points") or [])) for lp in (loops or [])),
+            (tuple(str(pp.get("Id")) for pp in (lp.get("Points") or [])) for lp in loops),
             key=lambda ids: (ids[0] if ids else "", len(ids))
         ))
         return (ncs, pts_tup, loops_tup)
 
-    
     def _dag_key_for_identity(self, identity) -> str:
-        """
-        Turn any identity object into a stable string key (even if parts are unhashable).
-        """
-        import hashlib, json
+        import hashlib
         try:
-            # if it is already hashable & small, keep tuple; but we still stringify
             blob = json.dumps(identity, sort_keys=True, ensure_ascii=False, default=str)
         except Exception:
             blob = repr(identity)
         return hashlib.blake2b(blob.encode("utf-8"), digest_size=16).hexdigest()
 
-
-    # @lru_cache(maxsize=1024)
-    # def _dag_key_for_identity(self, key: int) -> int:
-    #     # thin wrapper to make lru_cache happy with identity int
-    #     return key
-
     def build_dag(self) -> Tuple[List[str], Dict[str, dict]]:
-        """
-        Build topological order of points based on "Reference" dependencies.
-        Caches by object identity (id(self.points)).
-        """
         identity = self._dag_identity_tuple()
         key = self._dag_key_for_identity(identity)
 
-        # instance cache slots
         cache_key = getattr(self, "_dag_cache_key", None)
         cache_val = getattr(self, "_dag_cache_val", None)
         if cache_key == key and cache_val is not None:
             return cache_val
-        
-        all_points = self.points
+
+        all_points = self._collect_all_points()
         by_id = {}
-        deps: Dict[str, set] = {}
+        deps = {}
         for p in all_points:
             pid = str(p.get("Id") or p.get("id"))
             by_id[pid] = p
@@ -570,9 +406,8 @@ class CrossSection:
             else:
                 deps[pid] = set()
 
-        # Kahn topological sort
         incoming = {k: set(v) for k, v in deps.items()}
-        outgoing: Dict[str, set] = {k: set() for k in deps}
+        outgoing = {k: set() for k in deps}
         for k, vs in deps.items():
             for v in vs:
                 if v in outgoing:
@@ -580,10 +415,9 @@ class CrossSection:
                 else:
                     outgoing[v] = {k}
 
-        order: List[str] = []
+        order = []
         roots = [k for k, s in incoming.items() if not s]
         roots.sort()
-        from collections import deque
         q = deque(roots)
         while q:
             u = q.popleft()
@@ -593,44 +427,33 @@ class CrossSection:
                 if not incoming[w]:
                     q.append(w)
 
-        # if cycles or missing deps -> append remaining in a stable order
         remaining = [k for k in deps.keys() if k not in order]
         if remaining:
             logger.warning("CrossSection DAG has unresolved dependencies or cycles: %s", remaining)
             order.extend(sorted(remaining))
 
-        # keep for quick reuse
         self._dag_cache_key = key
         self._dag_cache_val = (order, by_id)
         return order, by_id
 
-    # -------------------------------------------------------------------------
-    # Variable array preparation & unit harmonization (vector env)
-    # -------------------------------------------------------------------------
-
     @staticmethod
     def _results_signature(stations_m, axis_var_rows):
-        import hashlib, json
+        import hashlib
         blob = json.dumps({
             "stations": [float(s) for s in (stations_m or [])],
             "vars": axis_var_rows or [],
         }, sort_keys=True, default=str)
         return hashlib.blake2b(blob.encode("utf-8"), digest_size=16).hexdigest()
 
-
     @staticmethod
     def _build_var_arrays_from_results(results: List[Dict[str, float]],
                                        defaults: Dict[str, float],
                                        keep: Optional[set] = None) -> Dict[str, np.ndarray]:
-        """
-        Make a name->array map (float64) for all stations.
-        """
         names = keep or set()
         if not names:
-            # if keep is empty, collect across all result dicts
             for d in results or []:
                 names.update(d.keys())
-        out: Dict[str, np.ndarray] = {}
+        out = {}
         S = len(results or [])
         for name in names:
             arr = np.full(S, np.nan, dtype=float)
@@ -644,13 +467,6 @@ class CrossSection:
 
     @staticmethod
     def _fix_var_units_inplace(var_arrays: Dict[str, np.ndarray], defaults: Dict[str, float]) -> None:
-        """
-        Heuristics identical to the engine:
-
-        - Angles (W_/Q_/INCL_...) near 0.0 likely radians -> scale ×1000 to degrees (legacy convention).
-        - Lengths (B_/T_/BEFF_/EX...) near <100 -> likely meters -> scale ×1000 to mm.
-        If default is available in JSON, pick the scale that best matches the default.
-        """
         def looks_angle(name: str) -> bool:
             n = name.upper()
             return n.startswith("W_") or n.startswith("Q_") or n.startswith("INCL_")
@@ -681,15 +497,8 @@ class CrossSection:
             if scale != 1.0:
                 var_arrays[name] = a * scale
 
-    # -------------------------------------------------------------------------
-    # Expression collection & evaluation
-    # -------------------------------------------------------------------------
-
     @staticmethod
     def _collect_used_variable_names(section_json: dict) -> set:
-        """
-        Find variable names referenced by point Coord expressions.
-        """
         used = set()
         pts = (section_json or {}).get("Points") or section_json.get("points") or []
         for p in pts or []:
@@ -699,7 +508,6 @@ class CrossSection:
                     txt = str(expr)
                 except Exception:
                     continue
-                # very simple parse: consider A..Z_0..9 tokens as potential names
                 token = ""
                 for ch in txt:
                     if ch.isalnum() or ch == "_":
@@ -716,19 +524,9 @@ class CrossSection:
     def _compile_pair(expr_x: str, expr_y: str):
         return _compile_expr(str(expr_x)), _compile_expr(str(expr_y))
 
-    # -------------------------------------------------------------------------
-    # Vectorized local-frame transforms
-    # (XY here mean "local-Y" and "local-Z" in your convention)
-    # -------------------------------------------------------------------------
-
     @staticmethod
     def _euclid_vectorized(X: np.ndarray, Y: np.ndarray,
                            ref_pts: List[dict] | None) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Euclidean: if 0 ref -> (X,Y)
-                   if 1 ref -> add (px, py)
-                   if 2 ref -> add (p1.x, p2.y)  [historic behavior]
-        """
         if not ref_pts:
             return X, Y
         r = [p for p in ref_pts if p is not None]
@@ -753,7 +551,6 @@ class CrossSection:
 
     @staticmethod
     def _cy_vectorized(ref_pts: List[dict] | None) -> Tuple[np.ndarray, np.ndarray]:
-        # construction-al Y: origin at first reference point, X-axis along +X
         if not ref_pts:
             return np.zeros(1, float), np.zeros(1, float)
         p = ref_pts[0]
@@ -763,12 +560,7 @@ class CrossSection:
 
     @staticmethod
     def _cz_vectorized(ref_pts: List[dict] | None) -> Tuple[np.ndarray, np.ndarray]:
-        # construction-al Z: same as CY in this minimal port (can be specialized)
         return CrossSection._cy_vectorized(ref_pts)
-
-    # -------------------------------------------------------------------------
-    # Public: vectorized evaluation of section points
-    # -------------------------------------------------------------------------
 
     def eval_expressions_vectorized(
         self,
@@ -779,9 +571,8 @@ class CrossSection:
         negate_x: bool = True,
         stations_count: Optional[int] = None,
     ) -> Tuple[List[str], np.ndarray, np.ndarray]:
-      
+
         ids = list(order)
-        # key change: S from stations_count (preferred), else from arrays (if any)
         if stations_count is not None:
             S = int(stations_count)
         else:
@@ -803,25 +594,22 @@ class CrossSection:
 
             cx, cy = self._compile_pair(x_expr, y_expr)
 
-            env = env_base
+            env = env_base.copy()
 
             try:
                 x_val = eval(cx, {"__builtins__": {}}, env)
-            except NameError as e:
-                logger.error("Unknown name in X for point '%s' in section '%s': %s",
-                            pid, getattr(self, "name", "?"), e)
+            except Exception as e:
+                logger.error("Error in X for point '%s' in section '%s': %s", pid, self.name, e)
                 x_val = np.full(S, np.nan, float)
             try:
                 y_val = eval(cy, {"__builtins__": {}}, env)
-            except Exception:
-                logger.error("Unknown name in Y for point '%s' in section '%s': %s",
-                            pid, getattr(self, "name", "?"), e)
+            except Exception as e:
+                logger.error("Error in Y for point '%s' in section '%s': %s", pid, self.name, e)
                 y_val = np.full(S, np.nan, float)
 
             X[:, j] = np.asarray(x_val, float)
             Y[:, j] = np.asarray(y_val, float)
 
-        # apply Euclidean reference shifts in topological order
         id_to_col = {pid: idx for idx, pid in enumerate(ids)}
         for j, pid in enumerate(ids):
             refs = by_id.get(pid, {}).get("Reference") or []
@@ -840,11 +628,6 @@ class CrossSection:
 
         if negate_x:
             X = -X
-    
-        # Interpret coordinates in the chosen local system (point-specific)
-        # For the vectorized path we assume primary use is Euclidean coords already,
-        # because reference-based mixes are uncommon across stations; users can
-        # encode ref shifts in expressions. If needed, extend per-point ref frames here.
 
         return ids, X, Y
 
@@ -862,35 +645,7 @@ class CrossSection:
             negate_x=negate_x, stations_count=stations_count
         )
 
-
-    # -------------------------------------------------------------------------
-    # Loops index (cached per ids order)
-    # -------------------------------------------------------------------------
-    
-    def inflate_points_from_json(self):
-        if not isinstance(self.json_data, dict):
-            return
-        flat = []
-        # top-level
-        for p in self._safe_points_list():
-            flat.append(self._normalize_point_row(p))
-        # loop points
-        for lp in self._safe_loops_list():
-            for p in lp.get("Points") or []:
-                flat.append(self._normalize_point_row(p))
-        # de-dup by Id, keep first occurrence
-        seen, uniq = set(), []
-        for p in flat:
-            pid = p.get("Id")
-            if pid and pid not in seen:
-                seen.add(pid); uniq.append(p)
-        self.points = uniq
-
     def _loops_idx(self, ids):
-        """
-        Map loop point ids to column indices in your point matrix,
-        tolerant to legacy point id keys.
-        """
         loops_raw = self._safe_loops_list()
         if not loops_raw:
             return []
@@ -922,17 +677,9 @@ class CrossSection:
                 loops.append(np.asarray(idxs, dtype=int))
         return loops
 
-
-    # -------------------------------------------------------------------------
-    # Public: compute local YZ points (vectorized)
-    # -------------------------------------------------------------------------
-
     def compute_local_points(
         self, *, axis_var_results: List[Dict[str, float]], negate_x: bool = True
     ) -> Tuple[List[str], np.ndarray, np.ndarray, List[np.ndarray]]:
-        if not (isinstance(self.points, list) and self.points) and isinstance(self.json_data, dict):
-            self.inflate_points_from_json()
-        # Build a minimal JSON "view" that includes both Points and Loops points
         pts_all = self._collect_all_points()
         section_json = {"Points": pts_all}
         used_names = self._collect_used_variable_names(section_json)
@@ -946,76 +693,24 @@ class CrossSection:
         ids, X_mm, Y_mm = self.get_coordinates_vectorized(
             var_arrays=var_arrays, order=order, by_id=by_id, negate_x=negate_x, stations_count=len(axis_var_results)
         )
-        
+
         loops_idx = self._loops_idx(ids)
 
-        return ids, X_mm, Y_mm, loops_idx
-
-
-    # -------------------------------------------------------------------------
-    # Public: embed local YZ as 3D using Axis (parallel-transport frames)
-    # -------------------------------------------------------------------------
-
-    def compute_embedded_points(
-        self,
-        *,
-        axis,                          # models.axis.Axis (expects mm internal)
-        axis_var_results: List[Dict[str, float]],
-        stations_m: List[float],
-        twist_deg: float = 0.0,
-        negate_x: bool = True,
-    ) -> Tuple[List[str], np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[np.ndarray]]:
-        """
-        Full path: filter stations to axis domain, vector-eval local points, embed via Axis.
-        Returns:
-            ids, stations_mm, P_mm:(S,N,3), X_mm:(S,N), Y_mm:(S,N), loops_idx
-        """
-        if axis is None or not stations_m:
-            return [], np.array([], float), np.zeros((0, 0, 3), float), np.zeros((0, 0), float), np.zeros((0, 0), float), []
-
-        stations_mm_all = np.asarray(stations_m, float) * 1000.0
-        smin = float(np.min(axis.stations))
-        smax = float(np.max(axis.stations))
-        keep = (stations_mm_all >= smin) & (stations_mm_all <= smax)
-        if not np.any(keep):
-            return [], np.array([], float), np.zeros((0, 0, 3), float), np.zeros((0, 0), float), np.zeros((0, 0), float), []
-
-        stations_mm = stations_mm_all[keep]
-        kept_results = [axis_var_results[i] for i, k in enumerate(keep) if k]
-
-        ids, X_mm, Y_mm, loops_idx = self.compute_local_points(
-            axis_var_results=kept_results, negate_x=negate_x
-        )
-        
-        local_yz = np.dstack([X_mm, Y_mm])  # (S,N,2)   X==localY, Y==localZ (historic)
-        P_mm = axis.embed_section_points_world(
-            stations_mm, yz_points_mm=local_yz, x_offsets_mm=None, rotation_deg=float(twist_deg)
-        )
-
-        # after ids, X_mm, Y_mm are computed
         S, N = X_mm.shape if X_mm.size else (len(axis_var_results), 0)
         logger.info("Section %s (ncs=%s): stations=%d, points=%d",
                     getattr(self, "name", "?"), getattr(self, "ncs", "?"), S, N)
 
-        # only log UL if it actually exists
         if "UL" in ids and S > 0:
             j = ids.index("UL")
             logger.info("UL @ first station (Y,Z mm): %.3f, %.3f", X_mm[0, j], Y_mm[0, j])
 
-        # useful NaN check
         nan_xy = int(np.isnan(X_mm).sum() + np.isnan(Y_mm).sum())
         if nan_xy:
             logger.warning("NaNs in section %s: %d total", getattr(self, "name", "?"), nan_xy)
 
-        
-        return ids, stations_mm, P_mm, X_mm, Y_mm, loops_idx
-
-    # -------------------------------------------------------------------------
-    # Legacy scalar ReferenceFrame (kept for compatibility, marked deprecated)
-    # -------------------------------------------------------------------------
+        return ids, X_mm, Y_mm, loops_idx
 
     class ReferenceFrame:
-        """Deprecated scalar path; kept for older preview tools."""
         def __init__(self, reference_type, reference=None, points=None, variables=None):
             self.reference_type = reference_type
             self.reference = reference or []
@@ -1059,9 +754,8 @@ class CrossSection:
         def _cz(self):
             return {'coords': {'x': 0.0, 'y': 0.0}, 'guides': None}
 
-    # Convenience: single-station scalar compute (legacy preview)
     def compute_local_points_scalar(self, env_vars: Dict[str, float]) -> List[Dict[str, float]]:
-        pts = self.points
+        pts = self._collect_all_points()
         out = []
         for p in pts:
             coord = p.get("Coord") or p.get("coord") or [0, 0]
@@ -1069,104 +763,22 @@ class CrossSection:
             xy = rf.get_coordinates(coord)["coords"]
             out.append({"id": p.get("Id") or p.get("id"), "x": float(xy["x"]), "y": float(xy["y"])})
         return out
-    
-    @classmethod
-    def from_dict(
-        cls,
-        row: Dict,
-        *,
-        mapping_cfg=None,
-        axis_data=None,              # unused here but kept for signature parity
-        json_loader: Optional[Callable[[str], Dict]] = None,
-        default_json_by_type: Optional[Dict[str, List[str]]] = None,
-        debug: bool | None = None
-    ):
-        """
-        Create CrossSection, add sensible json_name fallback, and attach json_data.
-        """
-        if mapping_cfg is None:
-            from mapping import mapping as _mapping
-            mapping_cfg = _mapping
 
-        # 1) Let the generic loader map all basic fields (ncs, name, type, variables, points)
-        from base import from_dict as _generic_from_dict
-        obj = _generic_from_dict(cls, row, mapping_cfg)
+# Function to load sectiondata.json from file or string
+def load_section_data(json_path_or_str: str) -> Dict[str, Any]:
+    if os.path.isfile(json_path_or_str):
+        with open(json_path_or_str, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    else:
+        # Assume it's a JSON string
+        return json.loads(json_path_or_str)
 
-        # 2) Ensure json_name exists: use fallback by 'type' if empty
-        if not getattr(obj, "json_name", None):
-            table = default_json_by_type or DEFAULT_JSON_BY_TYPE
-            typ = (getattr(obj, "type", "") or "").strip()
-            if typ in table:
-                setattr(obj, "json_name", list(table[typ]))
-
-        # normalize json_name to List[str]
-        jn = getattr(obj, "json_name", None)
-        if isinstance(jn, str) and jn.strip():
-            obj.json_name = [jn.strip()]
-        elif not isinstance(jn, list):
-            obj.json_name = []
-
-        # 3) Attach json_data (prefer the first file that parses and contains Points/Loops)
-        if json_loader is None:
-            # local minimal loader using your find_relative_file if available
-            try:
-                from .base import find_relative_file
-            except Exception:
-                find_relative_file = None
-
-            def _default_loader(path: str) -> Dict:
-                if not path:
-                    return {}
-                full = find_relative_file(path) if find_relative_file else path
-                p = full if (full and os.path.exists(full)) else path
-                try:
-                    with open(p, "rb") as f:
-                        return json.loads(f.read().decode("utf-8"))
-                except Exception:
-                    try:
-                        with open(p, "r", encoding="utf-8") as f:
-                            return json.load(f)
-                    except Exception:
-                        return {}
-            json_loader = _default_loader
-
-        obj.json_data = None
-        for rel in (obj.json_name or []):
-            js = json_loader(rel) or {}
-            # accept typical schemas
-            if isinstance(js, dict) and any(k in js for k in ("Points", "Loops", "Contours", "Polygons")):
-                obj.json_data = js
-                break
-
-        # 4) If top-level 'points'/'variables' are missing but json_data exists, surface them
-        if getattr(obj, "json_data", None):
-            if not getattr(obj, "points", None):
-                pts = obj.json_data.get("Points")
-                if isinstance(pts, list):
-                    obj.points = pts
-            if not getattr(obj, "variables", None):
-                vars_dict = obj.json_data.get("Variables")
-                if isinstance(vars_dict, dict):
-                    # keep dict shape; your get_defaults handles both dict and list
-                    obj.variables = vars_dict
-
-        return obj
-    
-   
-
-
-DEFAULT_JSON_BY_TYPE = {
-        "Deck":        ["MASTER_SECTION/SectionData.json"],
-        "MainGirder":  ["MASTER_SECTION/MASTER_DeckMain-1Gird-Slab.json"],
-        "CrossGirder": ["MASTER_SECTION/MASTER_DeckMain-1Gird-Slab.json"],
-        "Pier":        ["MASTER_SECTION/MASTER_Pier.json"],
-        "Foundation":  ["MASTER_SECTION/MASTER_Foundation.json"],
-    }
-
-
-
+# Example usage and tests
 if __name__ == "__main__":
-      
+    # Provide your sectiondata.json path or content here
+    # Example: json_source = 'path/to/sectiondata.json'
+    # Or inline JSON string
+    
     json_data = {
    "Name":"section_0100.cdb",
    "Id":100,
@@ -1376,257 +988,11 @@ if __name__ == "__main__":
       "BEFF_FB":"BEFF_FB:Axis Variable"
    }
 }
-    raw_crosssection = {
-   "No":"1",
-   "Class":"CrossSection",
-   "Type":"Deck",
-   "Description":"test",
-   "Name":"MASTER_Deck",
-   "InActive":"",
-   "NCS":111,
-   "Material1":101,
-   "Material2":0,
-   "Material_Reinf":200,
-   "JSON_name":[
-      "MASTER_SECTION\\SectionData.json"
-   ],
-   "SofiCode":[
-      
-   ],
-   "Points":[
-      {
-         "PointName":"O",
-         "CoorY":"0",
-         "CoorZ":"0",
-         "CoorYVal":"0",
-         "CoorZVal":"0"
-      },
-      {
-         "PointName":"UM",
-         "CoorY":"0",
-         "CoorZ":"H_QS",
-         "CoorYVal":"0",
-         "CoorZVal":2750.00023841857
-      },
-      {
-         "PointName":"UL",
-         "CoorY":"-37+B_TR/2-(1/TAN((W_ST)*(Pi/180))*(H_QS-T_FBA/COS((Q_NG/100)*(Pi/180))-B_TR/2*Q_NG/100))",
-         "CoorZ":"H_QS",
-         "CoorYVal":"Error 2015",
-         "CoorZVal":2750.00023841857
-      },
-      {
-         "PointName":"UR",
-         "CoorY":"-37-B_TR/2+(1/TAN((W_ST)*(Pi/180))*(H_QS-T_FBA/COS((Q_NG/100)*(Pi/180))+B_TR/2*Q_NG/100))",
-         "CoorZ":"H_QS",
-         "CoorYVal":"Error 2015",
-         "CoorZVal":2750.00023841857
-      },
-      {
-         "PointName":"AKL",
-         "CoorY":"B_TR/2-37",
-         "CoorZ":"+T_FBA/COS((Q_NG/100)*(Pi/180))+B_TR/2*Q_NG/100",
-         "CoorYVal":4250.50038146972,
-         "CoorZVal":"Error 2015"
-      },
-      {
-         "PointName":"AKR",
-         "CoorY":"-B_TR/2-37",
-         "CoorZ":"+T_FBA/COS((Q_NG/100)*(Pi/180))-B_TR/2*Q_NG/100",
-         "CoorYVal":"-4324.50038146972",
-         "CoorZVal":"Error 2015"
-      },
-      {
-         "PointName":"OL",
-         "CoorY":"(B_FB/2)+EX",
-         "CoorZ":"((B_FB/2+EX-1900)*Q_NG/100)-1900*0.025",
-         "CoorYVal":7950.00028610225,
-         "CoorZVal":134.000008583068
-      },
-      {
-         "PointName":"OR",
-         "CoorY":"(-B_FB/2)+EX-75",
-         "CoorZ":"(-B_FB/2+EX)*Q_NG/100",
-         "CoorYVal":"-8025.00028610225",
-         "CoorZVal":"-238.500008583068"
-      },
-      {
-         "PointName":"1L",
-         "CoorY":"-299.999952316284",
-         "CoorZ":100.000023841857,
-         "CoorYVal":"-299.999952316284",
-         "CoorZVal":100.000023841857
-      },
-      {
-         "PointName":"2L",
-         "CoorY":"-400.000095367431",
-         "CoorZ":400.000035762786,
-         "CoorYVal":"-400.000095367431",
-         "CoorZVal":400.000035762786
-      },
-      {
-         "PointName":"3L",
-         "CoorY":"-500",
-         "CoorZ":699.999988079071,
-         "CoorYVal":"-500",
-         "CoorZVal":699.999988079071
-      },
-      {
-         "PointName":"4L",
-         "CoorY":"-600.000143051147",
-         "CoorZ":"1100.0000834465",
-         "CoorYVal":"-600.000143051147",
-         "CoorZVal":"1100.0000834465"
-      },
-      {
-         "PointName":"5L",
-         "CoorY":"-700.000047683715",
-         "CoorZ":1400.00003576278,
-         "CoorYVal":"-700.000047683715",
-         "CoorZVal":1400.00003576278
-      }
-   ],
-   "Variables":[
-      {
-         "VariableName":"TEST",
-         "VariableValue":2750.00023841857,
-         "VariableUnit":"[mm]",
-         "VariableDescription":"H_QS:Axis Variable"
-      },
-      {
-         "VariableName":"H_QS",
-         "VariableValue":3000.00023841857,
-         "VariableUnit":"[mm]",
-         "VariableDescription":"H_QS:Axis Variable"
-      },
-      {
-         "VariableName":"B_TR",
-         "VariableValue":8575.00076293945,
-         "VariableUnit":"[mm]",
-         "VariableDescription":"B_TR:Axis Variable"
-      },
-      {
-         "VariableName":"W_ST",
-         "VariableValue":"75",
-         "VariableUnit":"[mm]",
-         "VariableDescription":"W_ST:Axis Variable"
-      },
-      {
-         "VariableName":"T_FBA",
-         "VariableValue":600.000023841857,
-         "VariableUnit":"[mm]",
-         "VariableDescription":"T_FBA:Axis Variable"
-      },
-      {
-         "VariableName":"Q_NG",
-         "VariableValue":"3",
-         "VariableUnit":"[mm]",
-         "VariableDescription":"Q_NG:Axis Variable"
-      },
-      {
-         "VariableName":"B_FB",
-         "VariableValue":15900.0005722045,
-         "VariableUnit":"[mm]",
-         "VariableDescription":"B_FB:Axis Variable"
-      },
-      {
-         "VariableName":"EX",
-         "VariableValue":"0",
-         "VariableUnit":"[mm]",
-         "VariableDescription":"EX:Axis Variable"
-      },
-      {
-         "VariableName":"T_ST",
-         "VariableValue":"500",
-         "VariableUnit":"[mm]",
-         "VariableDescription":"T_ST:Axis Variable"
-      },
-      {
-         "VariableName":"T_FBI",
-         "VariableValue":600.000023841857,
-         "VariableUnit":"[mm]",
-         "VariableDescription":"T_FBI:Axis Variable"
-      },
-      {
-         "VariableName":"T_BA",
-         "VariableValue":600.000023841857,
-         "VariableUnit":"[mm]",
-         "VariableDescription":"T_BA:Axis Variable"
-      },
-      {
-         "VariableName":"B_BV",
-         "VariableValue":"2000",
-         "VariableUnit":"[mm]",
-         "VariableDescription":"B_BV:Axis Variable"
-      },
-      {
-         "VariableName":"T_BM",
-         "VariableValue":350.000023841857,
-         "VariableUnit":"[mm]",
-         "VariableDescription":"T_BM:Axis Variable"
-      },
-      {
-         "VariableName":"B_KK",
-         "VariableValue":"500",
-         "VariableUnit":"[mm]",
-         "VariableDescription":"B_KK:Axis Variable"
-      },
-      {
-         "VariableName":"T_KP",
-         "VariableValue":"250",
-         "VariableUnit":"[mm]",
-         "VariableDescription":"T_KP:Axis Variable"
-      },
-      {
-         "VariableName":"B_FBV",
-         "VariableValue":3000.00023841857,
-         "VariableUnit":"[mm]",
-         "VariableDescription":"B_FBV:Axis Variable"
-      },
-      {
-         "VariableName":"T_FBM",
-         "VariableValue":350.000023841857,
-         "VariableUnit":"[mm]",
-         "VariableDescription":"T_FBM:Axis Variable"
-      },
-      {
-         "VariableName":"BEFF_BP",
-         "VariableValue":100.000001490116,
-         "VariableUnit":"[mm]",
-         "VariableDescription":"BEFF_BP:Axis Variable"
-      },
-      {
-         "VariableName":"BEFF_KR",
-         "VariableValue":"2500",
-         "VariableUnit":"[mm]",
-         "VariableDescription":"BEFF_KR:Axis Variable"
-      },
-      {
-         "VariableName":"BEFF_FB",
-         "VariableValue":100.000001490116,
-         "VariableUnit":"[mm]",
-         "VariableDescription":"BEFF_FB:Axis Variable"
-      }
-   ]
-}
-    
-    cs = CrossSection.from_dict(raw_crosssection)
-    cs.attach_json_payload(json_data)
-    #cs.inflate_points_from_json()
+    raw_crosssection = {'No': '1', 'Class': 'CrossSection', 'Type': 'Deck', 'Description': 'test', 'Name': 'MASTER_Deck', 'InActive': '', 'NCS': 111, 'Material1': 101, 'Material2': 0, 'Material_Reinf': 200, 'JSON_name': ['MASTER_SECTION\\SectionData.json'], 'SofiCode': [], 'Points': [{'PointName': 'O', 'CoorY': '0', 'CoorZ': '0', 'CoorYVal': '0', 'CoorZVal': '0'}, {'PointName': 'UM', 'CoorY': '0', 'CoorZ': 'H_QS', 'CoorYVal': '0', 'CoorZVal': 2750.00023841857}, {'PointName': 'UL', 'CoorY': '-37+B_TR/2-(1/TAN((W_ST)*(Pi/180))*(H_QS-T_FBA/COS((Q_NG/100)*(Pi/180))-B_TR/2*Q_NG/100))', 'CoorZ': 'H_QS', 'CoorYVal': 'Error 2015', 'CoorZVal': 2750.00023841857}, {'PointName': 'UR', 'CoorY': '-37-B_TR/2+(1/TAN((W_ST)*(Pi/180))*(H_QS-T_FBA/COS((Q_NG/100)*(Pi/180))+B_TR/2*Q_NG/100))', 'CoorZ': 'H_QS', 'CoorYVal': 'Error 2015', 'CoorZVal': 2750.00023841857}, {'PointName': 'AKL', 'CoorY': 'B_TR/2-37', 'CoorZ': '+T_FBA/COS((Q_NG/100)*(Pi/180))+B_TR/2*Q_NG/100', 'CoorYVal': 4250.50038146972, 'CoorZVal': 'Error 2015'}, {'PointName': 'AKR', 'CoorY': '-B_TR/2-37', 'CoorZ': '+T_FBA/COS((Q_NG/100)*(Pi/180))-B_TR/2*Q_NG/100', 'CoorYVal': '-4324.50038146972', 'CoorZVal': 'Error 2015'}, {'PointName': 'OL', 'CoorY': '(B_FB/2)+EX', 'CoorZ': '((B_FB/2+EX-1900)*Q_NG/100)-1900*0.025', 'CoorYVal': 7950.00028610225, 'CoorZVal': 134.000008583068}, {'PointName': 'OR', 'CoorY': '(-B_FB/2)+EX-75', 'CoorZ': '(-B_FB/2+EX)*Q_NG/100', 'CoorYVal': '-8025.00028610225', 'CoorZVal': '-238.500008583068'}, {'PointName': '1L', 'CoorY': '-299.999952316284', 'CoorZ': 100.000023841857, 'CoorYVal': '-299.999952316284', 'CoorZVal': 100.000023841857}, {'PointName': '2L', 'CoorY': '-400.000095367431', 'CoorZ': 400.000035762786, 'CoorYVal': '-400.000095367431', 'CoorZVal': 400.000035762786}, {'PointName': '3L', 'CoorY': '-500', 'CoorZ': 699.999988079071, 'CoorYVal': '-500', 'CoorZVal': 699.999988079071}, {'PointName': '4L', 'CoorY': '-600.000143051147', 'CoorZ': '1100.0000834465', 'CoorYVal': '-600.000143051147', 'CoorZVal': '1100.0000834465'}, {'PointName': '5L', 'CoorY': '-700.000047683715', 'CoorZ': 1400.00003576278, 'CoorYVal': '-700.000047683715', 'CoorZVal': 1400.00003576278}], 'Variables': [{'VariableName': 'TEST', 'VariableValue': 2750.00023841857, 'VariableUnit': '[mm]', 'VariableDescription': 'H_QS:Axis Variable'}, {'VariableName': 'H_QS', 'VariableValue': 2750.00023841857, 'VariableUnit': '[mm]', 'VariableDescription': 'H_QS:Axis Variable'}, {'VariableName': 'B_TR', 'VariableValue': 8575.00076293945, 'VariableUnit': '[mm]', 'VariableDescription': 'B_TR:Axis Variable'}, {'VariableName': 'W_ST', 'VariableValue': '75', 'VariableUnit': '[mm]', 'VariableDescription': 'W_ST:Axis Variable'}, {'VariableName': 'T_FBA', 'VariableValue': 600.000023841857, 'VariableUnit': '[mm]', 'VariableDescription': 'T_FBA:Axis Variable'}, {'VariableName': 'Q_NG', 'VariableValue': '3', 'VariableUnit': '[mm]', 'VariableDescription': 'Q_NG:Axis Variable'}, {'VariableName': 'B_FB', 'VariableValue': 15900.0005722045, 'VariableUnit': '[mm]', 'VariableDescription': 'B_FB:Axis Variable'}, {'VariableName': 'EX', 'VariableValue': '0', 'VariableUnit': '[mm]', 'VariableDescription': 'EX:Axis Variable'}, {'VariableName': 'T_ST', 'VariableValue': '500', 'VariableUnit': '[mm]', 'VariableDescription': 'T_ST:Axis Variable'}, {'VariableName': 'T_FBI', 'VariableValue': 600.000023841857, 'VariableUnit': '[mm]', 'VariableDescription': 'T_FBI:Axis Variable'}, {'VariableName': 'T_BA', 'VariableValue': 600.000023841857, 'VariableUnit': '[mm]', 'VariableDescription': 'T_BA:Axis Variable'}, {'VariableName': 'B_BV', 'VariableValue': '2000', 'VariableUnit': '[mm]', 'VariableDescription': 'B_BV:Axis Variable'}, {'VariableName': 'T_BM', 'VariableValue': 350.000023841857, 'VariableUnit': '[mm]', 'VariableDescription': 'T_BM:Axis Variable'}, {'VariableName': 'B_KK', 'VariableValue': '500', 'VariableUnit': '[mm]', 'VariableDescription': 'B_KK:Axis Variable'}, {'VariableName': 'T_KP', 'VariableValue': '250', 'VariableUnit': '[mm]', 'VariableDescription': 'T_KP:Axis Variable'}, {'VariableName': 'B_FBV', 'VariableValue': 3000.00023841857, 'VariableUnit': '[mm]', 'VariableDescription': 'B_FBV:Axis Variable'}, {'VariableName': 'T_FBM', 'VariableValue': 350.000023841857, 'VariableUnit': '[mm]', 'VariableDescription': 'T_FBM:Axis Variable'}, {'VariableName': 'BEFF_BP', 'VariableValue': 100.000001490116, 'VariableUnit': '[mm]', 'VariableDescription': 'BEFF_BP:Axis Variable'}, {'VariableName': 'BEFF_KR', 'VariableValue': '2500', 'VariableUnit': '[mm]', 'VariableDescription': 'BEFF_KR:Axis Variable'}, {'VariableName': 'BEFF_FB', 'VariableValue': 100.000001490116, 'VariableUnit': '[mm]', 'VariableDescription': 'BEFF_FB:Axis Variable'}]}
 
-    # Two stations using the same defaults (shape: List[Dict[str,float]], length 2)
-    station_vars = cs.get_defaults()
-    axis_var_results_all = [station_vars, station_vars]
+    cs = CrossSection.from_row(raw_crosssection)
+    cs.attach_json_payload(json_data, source='test_source')
 
-    pts = cs.points
-    print("has_loop_refs:", any(p.get("Reference") for p in pts))
-
-
-    ids, X_mm, Y_mm, loops_idx = cs.compute_local_points(axis_var_results=axis_var_results_all)
-
-    logger.info("IDs (%d): %s", len(ids), ids[:10])
-    logger.info("X_mm shape=%s, Y_mm shape=%s", X_mm.shape, Y_mm.shape)
-    logger.info("First station sample (first 5 pts): X=%s | Y=%s", X_mm[0, :5], Y_mm[0, :5])
-    logger.info("Loops: %d", len(loops_idx))
-    if loops_idx:
-        logger.info("First loop indices: %s", loops_idx[0])
+    # Test 1: Single station with default variables
+    axis_var_results = [cs.get_defaults()]
+    ids, X_mm, Y_mm, loops_idx = cs.compute_local_points(axis_var_results=axis_var_results)

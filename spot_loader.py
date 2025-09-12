@@ -156,13 +156,8 @@ class SpotLoader:
         return res
 
     def _enrich_cross_sections_with_geometry(self, ctx) -> None:
-        """
-        Attach Loops/Points/Variables from external section JSONs to every CrossSection.
-        Priority:
-        1) explicit JSON_name on the cross section row (first that exists),
-        2) defaults inferred from which object types reference this NCS,
-        3) SectionData.json as a final fallback.
-        """
+        from collections import defaultdict
+
         # Build: NCS -> set of consumer class names
         consumers = defaultdict(set)
 
@@ -179,33 +174,23 @@ class SpotLoader:
                     try: consumers[int(v)].add(obj.__class__.__name__)
                     except Exception: pass
 
-        # Deck
         for o in getattr(ctx, "deck_objects", []):
             _acc_ncs(o, "cross_section_ncs")
-
-        # Pier (top/bot/internal)
         for o in getattr(ctx, "pier_objects", []):
             _acc_ncs(o, "top_cross_section_ncs", "bot_cross_section_ncs", "internal_cross_section_ncs")
-
-        # Foundation
         for o in getattr(ctx, "foundation_objects", []):
             _acc_ncs(o, "cross_section_ncs", "cross_section_ncs2", "internal_cross_section_ncs")
 
-        # Secondary (beg/end)
-        for o in getattr(ctx, "secondary_objects", []):
-            _acc_ncs(o, "beg_ncs", "end_ncs")
-
-        # Enrich every cross section
         for ncs, cs in (getattr(ctx, "crosssec_by_ncs", {}) or {}).items():
-            # 1) explicit hints (JSON_name can be str or list)
-            cand: list[str] = []
+            # 1) explicit hints on the row
+            cand = []
             jn = getattr(cs, "json_name", None)
             if isinstance(jn, str) and jn.strip():
                 cand.append(jn)
             elif isinstance(jn, (list, tuple)):
                 cand += [s for s in jn if isinstance(s, str) and s.strip()]
 
-            # 2) fallbacks from consumers
+            # 2) fallbacks from which objects use this NCS
             cand += self._pick_default_library_for_consumers(consumers.get(ncs, set()))
 
             payload = None
@@ -217,26 +202,21 @@ class SpotLoader:
                     break
 
             if not payload:
-                self._dbg("[SpotLoader] no geometry for CrossSection ncs=%s name=%r  candidates=%s",
-                            ncs, getattr(cs, "name", ""), cand)
+                self._dbg(f"[SpotLoader] no geometry for CrossSection ncs={ncs} name={getattr(cs,'name','')!r} candidates={cand}")
                 continue
 
-            # Copy over geometry
-            if not getattr(cs, "points", None):
-                cs.points = payload.get("Points") or []
-            cs.loops = payload.get("Loops") or getattr(cs, "loops", []) or []
-            if not getattr(cs, "variables", None):
-                cs.variables = payload.get("Variables") or {}
+            # Attach full JSON (source of truth) and inflate once
+            try:
+                cs.attach_json_payload(payload, source=used)
+                cs.inflate_points_from_json()
+                cs.prime_caches()
+                # remember what worked
+                cs.json_name = [used] if used else (cs.json_name or [])
+                self._dbg(f"wired geometry for ncs={ncs} name={getattr(cs,'name','')!r} via {used} -> "
+                        f"points={len(cs.points or [])} loops={len(cs._safe_loops_list() or [])}")
+            except Exception as e:
+                self._dbg(f"[SpotLoader] attach/prime failed for ncs={ncs}: {e}")
 
-            # keep the whole blob if you want to debug later
-            cs.json_data = payload
-
-            self._dbg("wired geometry for ncs=%s name=%r via %s -> points=%d loops=%d" % (
-                ncs, getattr(cs, "name", ""),
-                used,
-                len(cs.points or []),
-                len(cs.loops or [])
-            ))
 
 
     # ------------------------------- public API ------------------------------ #
@@ -301,7 +281,7 @@ class SpotLoader:
             for class_name, class_rows in sorted(by.items()):
                 self._dbg(f"  {class_name}: {len(class_rows)} rows")
                 for i, row in enumerate(class_rows, 1):
-                    self._dbg(f"    Row {i}: keys={list(row.keys())}")
+                    self._dbg(f"    Row {i}: {row}")
 
         return self
     
@@ -330,7 +310,7 @@ class SpotLoader:
         mainstations,  _  = self._load_typed(MainStation,  ms_rows, axis_rows=axis_rows)
 
         # --- context (axes come from raw 'Axis' rows)
-        self.ctx = VisoContext.from_json(axis_rows, cross_sections, mainstations, mapping_cfg=MAP, verbose=True)
+        self.ctx = VisoContext.from_json(axis_rows, cross_sections, mainstations, mapping_cfg=MAP, verbose=False)
         if self.verbose:
             self._dbg("Context created:",
                       f"axes={len(self.ctx.axes_by_name)}",
@@ -385,7 +365,13 @@ class SpotLoader:
         if self.verbose:
             self._dbg("AxisVariable mapping keys:", list(axis_var_map.keys()) if isinstance(axis_var_map, dict) else type(axis_var_map))
 
+        # Enrich section geometry from library files and prime caches
         self._enrich_cross_sections_with_geometry(self.ctx)
+        for cs in self.ctx.crosssec_by_ncs.values():
+            try:
+                cs.prime_caches()   # build DAG once, inflate points, etc.
+            except Exception:
+                pass
 
         self.ctx.add_objects(
             self._deck_objects, self._pier_objects,
