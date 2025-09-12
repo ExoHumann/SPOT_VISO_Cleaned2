@@ -199,43 +199,9 @@ class BaseObject:
         from .axis_variable import AxisVariable
 
         raw = getattr(self, "axis_variables", None) or []
-        out = []
+        self.axis_variables_obj = AxisVariable.create_axis_variables(raw)
 
-        # mapping helpers with graceful fallbacks
-        def _get(row, keys, default=None):
-            if not isinstance(keys, (list, tuple)):
-                keys = [keys]
-            for k in keys:
-                if k in row and row[k] is not None:
-                    return row[k]
-            return default
 
-        for row in raw:
-            if not isinstance(row, dict):
-                continue
-            name = _get(row, ["VariableName","Name","VarName","Variable"], "")
-            xs   = _get(row, ["VariableStations","Stations","X","Xs","x","x_values"], []) or []
-            ys   = _get(row, ["VariableValues","Values","Y","Ys","y","y_values"], []) or []
-            ty   = _get(row, ["VariableIntTypes","Types","T","t"], []) or []
-
-            # normalize to floats (meters for X, 'Value' raw in mm if your JSON uses mm vars)
-            def _flt(v):
-                try: return float(str(v).replace(",", "."))
-                except: return None
-            xs = [v for v in (_flt(v) for v in xs) if v is not None]
-            ys = [v for v in (_flt(v) for v in ys) if v is not None]
-            ty = [str(t) if (t is not None) else "#" for t in ty]
-
-            # zip to dicts expected by AxisVariable
-            pts = []
-            for i in range(min(len(xs), len(ys))):
-                pts.append({"X": xs[i], "Value": ys[i], "Type": ty[i] if i < len(ty) else "#"})
-            if not pts:
-                continue
-
-            out.append(AxisVariable(values=pts, delta=0.0001, name=name, description=""))
-
-        self.axis_variables_obj = out
 
 
     def evaluate_axis_vars_at_stations(self, stations_m: List[float]) -> List[Dict[str, float]]:
@@ -375,127 +341,127 @@ def _tiny_hash(arr) -> str:
     data = (','.join(str(float(v)) for v in arr)).encode('utf-8')
     return hashlib.blake2b(data, digest_size=12).hexdigest()
 
-def _as_floats(val) -> List[float]:
-    out = []
-    if val is None: 
-        return out
-    if not isinstance(val, (list, tuple)):
-        val = [val]
-    for v in val:
-        try:
-            out.append(float(v))
-        except Exception:
-            pass
-    return out
+# def _as_floats(val) -> List[float]:
+#     out = []
+#     if val is None: 
+#         return out
+#     if not isinstance(val, (list, tuple)):
+#         val = [val]
+#     for v in val:
+#         try:
+#             out.append(float(v))
+#         except Exception:
+#             pass
+#     return out
 
-def _as_str_list(val) -> List[str]:
-    if val is None:
-        return []
-    if isinstance(val, str):
-        return [val]
-    if isinstance(val, (list, tuple)):
-        return [str(x) for x in val]
-    return [str(val)]
+# def _as_str_list(val) -> List[str]:
+#     if val is None:
+#         return []
+#     if isinstance(val, str):
+#         return [val]
+#     if isinstance(val, (list, tuple)):
+#         return [str(x) for x in val]
+#     return [str(val)]
 
-def _axis_vars_signature(rows: List[Dict]) -> str:
-    import hashlib, json
-    try:
-        blob = json.dumps(rows or [], sort_keys=True, ensure_ascii=False, default=str)
-    except Exception:
-        blob = str(rows)
-    return hashlib.blake2b(blob.encode("utf-8"), digest_size=16).hexdigest()
+# def _axis_vars_signature(rows: List[Dict]) -> str:
+#     import hashlib, json
+#     try:
+#         blob = json.dumps(rows or [], sort_keys=True, ensure_ascii=False, default=str)
+#     except Exception:
+#         blob = str(rows)
+#     return hashlib.blake2b(blob.encode("utf-8"), digest_size=16).hexdigest()
 
-def create_axis_variables(json_data: List[Dict], var_map: Dict) -> List[AxisVariable]:
-    # Uses your existing AxisVariable API; this expects keys already normalized.
+# def create_axis_variables(json_data: List[Dict], var_map: Dict) -> List[AxisVariable]:
+#     # Uses your existing AxisVariable API; this expects keys already normalized.
 
-    name_k = var_map.get("VariableName",       "VariableName")
-    xs_k   = var_map.get("StationValue",       "StationValue")      # <-- was "VariableStations"
-    ys_k   = var_map.get("VariableValues",     "VariableValues")
-    typ_k  = var_map.get("VariableIntTypes",   "VariableIntTypes")
-    desc_k = var_map.get("VariableDescription","VariableDescription")
-    ...
+#     name_k = var_map.get("VariableName",       "VariableName")
+#     xs_k   = var_map.get("StationValue",       "StationValue")      # <-- was "VariableStations"
+#     ys_k   = var_map.get("VariableValues",     "VariableValues")
+#     typ_k  = var_map.get("VariableIntTypes",   "VariableIntTypes")
+#     desc_k = var_map.get("VariableDescription","VariableDescription")
+#     ...
 
-    normalized: List[Dict] = []
-    for row in (json_data or []):
-        mapped = { var_map.get(k, k): v for k, v in row.items() }
-        name = str(mapped.get(name_k, "")).strip()
-        xs   = _as_floats(mapped.get(xs_k))
-        ys   = _as_floats(mapped.get(ys_k))
-        tys  = _as_str_list(mapped.get(typ_k))
-        desc = mapped.get(desc_k, "")
-        if len(xs) != len(ys):
-            n = min(len(xs), len(ys))
-            xs, ys = xs[:n], ys[:n]
-        pairs = sorted(zip(xs, ys), key=lambda t: t[0])
-        xs = [p[0] for p in pairs]
-        ys = [p[1] for p in pairs]
-        if not name or not xs:
-            continue
-        normalized.append({
-            name_k: name,
-            xs_k:   xs,
-            ys_k:   ys,
-            typ_k:  tys or ["linear"],
-            desc_k: desc,
-        })
-    return AxisVariable.create_axis_variables(normalized)
+#     normalized: List[Dict] = []
+#     for row in (json_data or []):
+#         mapped = { var_map.get(k, k): v for k, v in row.items() }
+#         name = str(mapped.get(name_k, "")).strip()
+#         xs   = _as_floats(mapped.get(xs_k))
+#         ys   = _as_floats(mapped.get(ys_k))
+#         tys  = _as_str_list(mapped.get(typ_k))
+#         desc = mapped.get(desc_k, "")
+#         if len(xs) != len(ys):
+#             n = min(len(xs), len(ys))
+#             xs, ys = xs[:n], ys[:n]
+#         pairs = sorted(zip(xs, ys), key=lambda t: t[0])
+#         xs = [p[0] for p in pairs]
+#         ys = [p[1] for p in pairs]
+#         if not name or not xs:
+#             continue
+#         normalized.append({
+#             name_k: name,
+#             xs_k:   xs,
+#             ys_k:   ys,
+#             typ_k:  tys or ["linear"],
+#             desc_k: desc,
+#         })
+#     return AxisVariable.create_axis_variables(normalized)
 
-#── Multi-candidate raw-key resolver ────────────────────────────────────────────
-def _raw_candidates_for(internal: str, cls_map: dict[str, str]) -> list[str]:
-    """
-    All raw keys that map to this internal field (handles aliases like
-    'Top-CrossSection@Ncs' and 'Top-CrossSection@NCS').
-    """
-    return [rk for rk, v in (cls_map or {}).items() if v == internal]
+# #── Multi-candidate raw-key resolver ────────────────────────────────────────────
+# def _raw_candidates_for(internal: str, cls_map: dict[str, str]) -> list[str]:
+#     """
+#     All raw keys that map to this internal field (handles aliases like
+#     'Top-CrossSection@Ncs' and 'Top-CrossSection@NCS').
+#     """
+#     return [rk for rk, v in (cls_map or {}).items() if v == internal]
 
-def _pick_raw_key(internal: str, cls_map: dict[str, str], data: dict, fallback_same_name=True) -> str | None:
-    """
-    Pick the first raw key for 'internal' that exists in 'data'.
-    If none exists and fallback_same_name is True, try the internal name itself.
-    """
-    for k in _raw_candidates_for(internal, cls_map):
-        if k in data:
-            return k
-    if fallback_same_name and internal in data:
-        return internal
-    return None
+# def _pick_raw_key(internal: str, cls_map: dict[str, str], data: dict, fallback_same_name=True) -> str | None:
+#     """
+#     Pick the first raw key for 'internal' that exists in 'data'.
+#     If none exists and fallback_same_name is True, try the internal name itself.
+#     """
+#     for k in _raw_candidates_for(internal, cls_map):
+#         if k in data:
+#             return k
+#     if fallback_same_name and internal in data:
+#         return internal
+#     return None
 
-# ── Robust Axis type detector ───────────────────────────────────────────────────
-def _is_axis_type(tp) -> bool:
-    """
-    Returns True if the type annotation contains models.axis.Axis anywhere:
-    Axis, Optional[Axis], Union[Axis, None], List[Axis], Tuple[Axis, ...],
-    or a forward-ref string like "Axis" / "models.axis.Axis".
-    """
-    if tp is None:
-        return False
+# # ── Robust Axis type detector ───────────────────────────────────────────────────
+# def _is_axis_type(tp) -> bool:
+#     """
+#     Returns True if the type annotation contains models.axis.Axis anywhere:
+#     Axis, Optional[Axis], Union[Axis, None], List[Axis], Tuple[Axis, ...],
+#     or a forward-ref string like "Axis" / "models.axis.Axis".
+#     """
+#     if tp is None:
+#         return False
 
-    # string forward-ref
-    if isinstance(tp, str):
-        return tp.split(".")[-1] == "Axis"
+#     # string forward-ref
+#     if isinstance(tp, str):
+#         return tp.split(".")[-1] == "Axis"
 
-    AxisClass = None
-    try:
-        from models.axis import Axis as AxisClass  # your real Axis class
-    except Exception:
-        pass
+#     AxisClass = None
+#     try:
+#         from models.axis import Axis as AxisClass  # your real Axis class
+#     except Exception:
+#         pass
 
-    if AxisClass is not None and tp is AxisClass:
-        return True
+#     if AxisClass is not None and tp is AxisClass:
+#         return True
 
-    origin = get_origin(tp) or getattr(tp, "__origin__", None)
-    args   = get_args(tp)   or getattr(tp, "__args__", ())
+#     origin = get_origin(tp) or getattr(tp, "__origin__", None)
+#     args   = get_args(tp)   or getattr(tp, "__args__", ())
 
-    if origin is None:
-        # tolerate direct class compare by name
-        return getattr(tp, "__name__", "") == "Axis"
+#     if origin is None:
+#         # tolerate direct class compare by name
+#         return getattr(tp, "__name__", "") == "Axis"
 
-    # containers
-    if origin in (list, set, tuple):
-        return any(_is_axis_type(a) for a in args)
+#     # containers
+#     if origin in (list, set, tuple):
+#         return any(_is_axis_type(a) for a in args)
 
-    # Optional/Union
-    if origin is Union:
-        return any(_is_axis_type(a) for a in args if a is not type(None))
+#     # Optional/Union
+#     if origin is Union:
+#         return any(_is_axis_type(a) for a in args if a is not type(None))
 
-    return False
+#     return False

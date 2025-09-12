@@ -147,11 +147,11 @@ class AxisVariable:
     def create_axis_variables(var_list: List[Dict]) -> List["AxisVariable"]:
         axis_variables = []
         for var_data in var_list:
-            if not all(key in var_data for key in ['VariableName', 'VariableStations', 'VariableValues', 'VariableIntTypes']):
+            if not all(key in var_data for key in ['VariableName', 'StationValue', 'VariableValues', 'VariableIntTypes']):
                 continue
             points = [
                 {'X': float(station), 'Value': float(value) if str(value).replace('.', '', 1).replace('-', '', 1).isdigit() else 0.0, 'Type': interp_type}
-                for station, value, interp_type in zip(var_data['VariableStations'], var_data['VariableValues'], var_data['VariableIntTypes'])
+                for station, value, interp_type in zip(var_data['StationValue'], var_data['VariableValues'], var_data['VariableIntTypes'])
             ]
             axis_var = AxisVariable(
                 points,

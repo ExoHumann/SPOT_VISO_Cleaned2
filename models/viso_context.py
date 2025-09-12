@@ -168,23 +168,22 @@ class VisoContext:
                 elif ax is None:
                     self._dbg(f"Axis '{ax_name}' not found for {o.__class__.__name__}('{getattr(o,'name',None)}')")
 
-            # Axis variables: if loader left raw list in .axis_variables, construct objects
-            if hasattr(o, "axis_variables") and hasattr(o, "set_axis_variables"):
-                try:
-                    o.set_axis_variables(axis_var_map or {})
-                    if hasattr(o, "axis_variables_obj"):
-                        self._dbg(
-                            f"AxisVariables promoted -> {o.__class__.__name__}('{getattr(o,'name',None)}'):",
-                            len(getattr(o, 'axis_variables_obj', []) or [])
-                        )
-                except TypeError:
-                    # Some of your older classes expect (raw, map)
-                    o.set_axis_variables(getattr(o, "axis_variables", []), axis_var_map or {})
-                    if hasattr(o, "axis_variables_obj"):
-                        self._dbg(
-                            f"(legacy) AxisVariables promoted -> {o.__class__.__name__}('{getattr(o,'name',None)}'):",
-                            len(getattr(o, 'axis_variables_obj', []) or [])
-                        )
+            # Axis variables: build only if the loader didn't already do it
+            if not getattr(o, "axis_variables_obj", None):
+                if hasattr(o, "set_axis_variables"):
+                    try:
+                        o.set_axis_variables()  # reads o.axis_variables and populates axis_variables_obj
+                    except Exception as e:
+                        if self._verbose:
+                            print(f"[VisoContext] axis variables parse failed for {getattr(o,'name','?')}: {e}")
+                elif hasattr(o, "axis_variables"):
+                    # last-resort direct creation
+                    try:
+                        from axis_variable import create_axis_variables
+                        o.axis_variables_obj = create_axis_variables(o.axis_variables or [])
+                    except Exception:
+                        o.axis_variables_obj = []
+
 
     def register_objects(self, objs: Iterable[Any]) -> None:
         """Index objects generically + into type-specific maps when available."""

@@ -1,510 +1,491 @@
 from __future__ import annotations
+# models/cross_section.py
 
 import ast
+import json
+import logging
+import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+
 import numpy as np
 
-# Reuse your existing utilities
 from utils import (
-    _RESERVED_FUNC_NAMES,
-    _VECTOR_FUNCS,
-    _sanitize_vars,
-    _SCALAR_FUNCS,     # kept only because other parts import it; not used here
     _compile_expr,
+    _sanitize_vars,
+    _SCALAR_FUNCS,     # unused here but kept for parity if you bring scalar path back
+    _VECTOR_FUNCS,
+    _RESERVED_FUNC_NAMES,
 )
-from models import AxisVariable
+
+logger = logging.getLogger(__name__)
 
 
-@dataclass
-class SectionGeometryEngine:
+# ---------------------------------------------------------------------
+# Minimal helpers for your JSON shapes
+# ---------------------------------------------------------------------
+def _normalize_point_row(p: dict) -> dict:
     """
-    Vectorized section solver with caching.
+    Canonicalize a point row to:
+      {Id:str, Coord:[str,str], Reference:list[str], ReferenceType:str?}
 
-    Responsibilities:
-    - Parse section JSON once: build a point-dependency DAG (cached).
-    - Evaluate point Coord expressions for all stations in one vectorized pass.
-      => produces local section coordinates (X_mm, Y_mm) in the local 2D frame.
-         NOTE: by convention here, X_mm == local Y, Y_mm == local Z.
-    - Embed local (Y,Z) sections into 3D using Axis (parallel-transport frames).
-      => Axis must provide `embed_section_points_world(...)`.
-
-    Public API:
-        compute(section_json, axis, axis_var_results, stations_m, twist_deg=0.0, negate_x=True)
-            -> (ids, stations_mm, P_mm, X_mm, Y_mm, loops_idx)
+    Supports:
+      - JSON points: {"Id","Coord",[optional]"Reference","ReferenceType"}
+      - Row points:  {"PointName","CoorY","CoorZ",[optional]"Reference","ReferenceType"}
     """
+    if "Id" in p and ("Coord" in p or "coord" in p):
+        pid = str(p["Id"])
+        coord = p.get("Coord") or p.get("coord") or [0, 0]
+        ref = list(p.get("Reference") or [])
+        rtype = p.get("ReferenceType") or p.get("Type")
+        return {"Id": pid, "Coord": [str(coord[0]), str(coord[1])], "Reference": ref, "ReferenceType": rtype}
 
-    # Small internal caches. Keys are object ids + rounded stations.
-    _dag_cache: Dict[int, Tuple[List[str], Dict[str, dict]]] = field(default_factory=dict, repr=False)
-    _loops_cache: Dict[Tuple[int, Tuple[str, ...]], List[np.ndarray]] = field(default_factory=dict, repr=False)
-    _result_cache: Dict[Any, Tuple[List[str], np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[np.ndarray]]] = field(default_factory=dict, repr=False)
+    # Row fallback
+    pid = str(p.get("PointName") or p.get("Id") or p.get("id") or "")
+    def pick(expr, val):
+        txt = str(expr) if expr is not None else ""
+        if not txt or txt.strip().lower().startswith("error"):
+            return "0" if (val is None or str(val).strip() == "") else str(val)
+        return txt
+    y_expr = pick(p.get("CoorY"), p.get("CoorYVal"))
+    z_expr = pick(p.get("CoorZ"), p.get("CoorZVal"))
+    ref = list(p.get("Reference") or [])
+    rtype = p.get("ReferenceType") or p.get("Type")
+    return {"Id": pid, "Coord": [y_expr, z_expr], "Reference": ref, "ReferenceType": rtype}
 
-    # ----------------------------- public API -----------------------------
 
-    def clear_caches(self) -> None:
-        """Manually clear all caches (useful during interactive debugging)."""
-        self._dag_cache.clear()
-        self._loops_cache.clear()
-        self._result_cache.clear()
+def _points_table(value: Any) -> Dict[str, Dict[str, Any]]:
+    """Create {id: point_dict} from a list/dict."""
+    out: Dict[str, Dict[str, Any]] = {}
+    if isinstance(value, dict):
+        for pid, row in value.items():
+            out[str(pid)] = row if isinstance(row, dict) else {"Raw": row}
+    elif isinstance(value, list):
+        for row in value:
+            if isinstance(row, dict):
+                pid = (row.get("Id") or row.get("id") or row.get("PointName") or row.get("Name"))
+                if pid is not None:
+                    out[str(pid)] = row
+    return out
 
-    def compute(
-        self,
-        *,
-        section_json: dict,
-        axis,                          # models.Axis instance
-        axis_var_results: List[dict],  # one dict per requested station (already evaluated)
-        stations_m: List[float],       # requested stations in meters
-        twist_deg: float = 0.0,        # optional in-plane twist of the local section
-        negate_x: bool = True,         # legacy local-X flip (kept for compatibility)
-    ) -> Tuple[List[str], np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[np.ndarray]]:
+
+# ---------------------------------------------------------------------
+# CrossSection (lean)
+# ---------------------------------------------------------------------
+@dataclass(kw_only=True)
+class CrossSection:
+    # Metadata you pass in from your rows
+    no: Optional[str] = None
+    class_name: Optional[str] = None
+    type: Optional[str] = None
+    description: Optional[str] = None
+    name: Optional[str] = None
+    inactive: Optional[str] = None
+    ncs: Optional[int] = None
+    material1: Optional[int] = None
+    material2: Optional[int] = None
+    material_reinf: Optional[int] = None
+    json_name: Union[str, List[str], None] = None
+    points: Union[List[Dict[str, Any]], Dict[str, Any], None] = None
+    variables: Union[List[Dict[str, Any]], Dict[str, Any], None] = None
+
+    # Attached section JSON (Points/Loops/etc.)
+    json_data: Optional[Dict[str, Any]] = field(default=None, init=False, repr=False)
+    json_source: Optional[str] = field(default=None, init=False, repr=False)
+
+    # Simple DAG cache
+    _dag_cache_key: Optional[str] = field(default=None, init=False, repr=False)
+    _dag_cache_val: Optional[Tuple[List[str], Dict[str, dict]]] = field(default=None, init=False, repr=False)
+
+    # --------------------- attach / defaults ---------------------
+    def attach_json_payload(self, payload: Dict[str, Any], source: Optional[str] = None) -> None:
+        if isinstance(payload, dict):
+            self.json_data = payload
+            self.json_source = source
+
+    def get_defaults(self) -> Dict[str, float]:
         """
-        Returns:
-          ids           : list[str] length N                      (point ids in topological order)
-          stations_mm   : (S,)                                    (kept stations in mm)
-          P_mm          : (S,N,3)                                 (global coordinates in mm)
-          X_mm, Y_mm    : (S,N)                                   (local coordinates in mm; X==local Y, Y==local Z)
-          loops_idx     : list[np.ndarray]                        (indices into `ids` for loop polylines)
+        Read variable defaults in mm. Prefer json_data["Variables"] (dict),
+        else accept row-style list [{VariableName, VariableValue}, ...].
         """
-        if not section_json:
-            return ([], np.array([], float), np.zeros((0, 0, 3), float),
-                    np.zeros((0, 0), float), np.zeros((0, 0), float), [])
+        # JSON dict
+        if isinstance(self.json_data, dict) and isinstance(self.json_data.get("Variables"), dict):
+            out = {}
+            for k, v in self.json_data["Variables"].items():
+                try:
+                    out[str(k)] = float(v)
+                except Exception:
+                    pass
+            if out:
+                return out
 
-        # 1) Filter stations to the axis domain (and convert to mm)
-        stations_mm_all = np.asarray(stations_m, float) * 1000.0
-        smin = float(np.min(axis.stations))
-        smax = float(np.max(axis.stations))
-        keep_mask = (stations_mm_all >= smin) & (stations_mm_all <= smax)
-        if not np.any(keep_mask):
-            return ([], np.array([], float), np.zeros((0, 0, 3), float),
-                    np.zeros((0, 0), float), np.zeros((0, 0), float), [])
-
-        stations_mm = stations_mm_all[keep_mask]
-        kept_results = [axis_var_results[i] for i, k in enumerate(keep_mask) if k]
-
-        # 2) Identify variables used in Coord expressions & get defaults from JSON
-        used_names = self._collect_used_variable_names(section_json)
-        defaults   = self._extract_variable_defaults(section_json)
-
-        # 3) Result cache key (section/axis/stations/twist/flip + tiny var signature)
-        var_sig = self._results_signature(kept_results, used_names)
-        key = (
-            "sec", id(section_json),
-            "ax",  id(axis),
-            "st",  tuple(np.round(np.asarray(stations_m, float)[keep_mask], 6)),
-            "tw",  round(float(twist_deg), 6),
-            "neg", bool(negate_x),
-            "varsig", var_sig,
-        )
-        hit = self._result_cache.get(key)
-        if hit is not None:
-            return hit
-
-        # 4) Build variable arrays (vector env), then harmonize units heuristically
-        var_arrays = self._build_var_arrays_from_results(kept_results, defaults, keep=used_names)
-        self._fix_var_units_inplace(var_arrays, defaults)
-
-        # 5) Topologically sorted point order + id->point mapping (cached)
-        order, by_id = self._prepare_point_solver(section_json)
-
-        # 6) Solve local XY for ALL stations (vectorized)
-        ids, X_mm, Y_mm = self._get_point_coords_vectorized(var_arrays, order, by_id, negate_x=negate_x)
-
-        # 7) Embed to global with Axis *once* (minimal twist frames inside Axis)
-        # Pack local (Y,Z) in the order this engine uses:
-        #   X_mm == local Y, Y_mm == local Z (historic naming kept)
-        local_yz = np.dstack([X_mm, Y_mm])   # (S,N,2)
-        P_mm = axis.embed_section_points_world(
-            stations_mm,
-            yz_points_mm=local_yz,
-            x_offsets_mm=None,               # supply per-station X offsets if needed
-            rotation_deg=float(twist_deg),
-        )
-
-        # 8) Loop indices (cached per section + ids order)
-        loops_idx = self._loops_idx(section_json, ids)
-
-        out = (ids, stations_mm, P_mm, X_mm, Y_mm, loops_idx)
-        if len(self._result_cache) > 64:
-            self._result_cache.clear()
-        self._result_cache[key] = out
+        # Row fallback
+        out: Dict[str, float] = {}
+        raw = self.variables or {}
+        if isinstance(raw, dict):
+            for k, v in raw.items():
+                try: out[str(k)] = float(v)
+                except Exception: pass
+        else:
+            for row in raw or []:
+                if isinstance(row, dict):
+                    n = str(row.get("VariableName"))
+                    try: out[n] = float(row.get("VariableValue", 0.0) or 0.0)
+                    except Exception: pass
         return out
-    
-    def compute_slice_from_vars(
-        self,
-        *,
-        section_json: dict,
-        axis,                      # Axis
-        axis_var_objs,             # List[AxisVariable]
-        station_m: float,
-        twist_deg: float = 0.0,
-        negate_x: bool = True,
-    ) -> dict | None:
+
+    # ------------------- gather points from JSON -------------------
+    def _collect_all_points(self) -> List[dict]:
         """
-        Convenience: compute a single-station slice and return a compact dict:
-          {"ids": [..], "P_row": (N,3) mm, "X_row": (N,), "Y_row": (N,),
-           "station_m_used": float, "axis": axis, "loops_idx": [...]}
+        Pull all point-like definitions your files actually use:
+        - Points
+        - Loops[].Points
+        - PointReinforcements[].Point
+        - LineReinforcements[].PointStart / .PointEnd
+        - NonEffectiveZones[].PointStart / .PointEnd
         """
-        if not section_json or axis is None:
-            return None
-        s_eff = axis.clamp_station_m(float(station_m))
-        var_rows = AxisVariable.evaluate_at_stations_cached(axis_var_objs or [], [s_eff])
-        ids, stations_mm, P_mm, X_mm, Y_mm, loops_idx = self.compute(
-            section_json=section_json,
-            axis=axis,
-            axis_var_results=var_rows,
-            stations_m=[s_eff],
-            twist_deg=float(twist_deg),
-            negate_x=bool(negate_x),
-        )
-        P_mm = np.asarray(P_mm, float)
-        X_mm = np.asarray(X_mm, float)
-        Y_mm = np.asarray(Y_mm, float)
-        if P_mm.ndim != 3 or P_mm.shape[0] == 0:
-            return None
-        return {
-            "ids": ids,
-            "P_row": P_mm[0],          # (N,3)
-            "X_row": X_mm[0] if X_mm.size else np.array([], float),
-            "Y_row": Y_mm[0] if Y_mm.size else np.array([], float),
-            "station_m_used": float(s_eff),
-            "axis": axis,
-            "loops_idx": loops_idx,
-        }
+        pts, seen = [], set()
+        jd = self.json_data or {}
 
-    # ----------------------------- cached helpers -----------------------------
+        def add(p):
+            if isinstance(p, dict):
+                q = _normalize_point_row(p)
+                pid = q.get("Id")
+                if pid and pid not in seen:
+                    seen.add(pid); pts.append(q)
 
-    def _prepare_point_solver(self, section_json: dict) -> Tuple[List[str], Dict[str, dict]]:
-        """
-        Build the point dependency graph and return:
-          - `order`: topological order of point Ids
-          - `by_id`: dict(Id -> point_json)
-        Cached per `id(section_json)`.
-        """
-        k = id(section_json)
-        hit = self._dag_cache.get(k)
-        if hit is not None:
-            return hit
+        for p in jd.get("Points") or []: add(p)
+        for lp in jd.get("Loops") or []:
+            for p in lp.get("Points") or []: add(p)
+        for pr in jd.get("PointReinforcements") or []:
+            add(pr.get("Point", {}))
+        for lr in jd.get("LineReinforcements") or []:
+            add(lr.get("PointStart", {})); add(lr.get("PointEnd", {}))
+        for nz in jd.get("NonEffectiveZones") or []:
+            add(nz.get("PointStart", {})); add(nz.get("PointEnd", {}))
 
-        all_points = self._collect_all_points(section_json)
+        return pts
 
-        by_id = {p["Id"]: p for p in all_points}
-        deps  = {pid: set(by_id[pid].get("Reference", []) or []) for pid in by_id}
-        indeg = {pid: len(deps[pid]) for pid in deps}
-        rev   = {pid: set() for pid in deps}
-        for pid, ds in deps.items():
-            for d in ds:
-                if d in rev:
-                    rev[d].add(pid)
+    # ---------------------- DAG (by Reference) ----------------------
+    def _dag_key(self) -> str:
+        pts = self._collect_all_points() if self.json_data else [ _normalize_point_row(p) for p in (self.points or []) ]
+        # small stable fingerprint string
+        def row_sig(p):
+            c = p.get("Coord") or ["0","0"]
+            r = tuple(p.get("Reference") or [])
+            return (p.get("Id"), str(c[0]), str(c[1]), r)
+        return json.dumps(sorted([row_sig(p) for p in pts]), sort_keys=True, default=str)
 
-        from collections import deque
-        q = deque([pid for pid, d in indeg.items() if d == 0])
+    def build_dag(self) -> Tuple[List[str], Dict[str, dict]]:
+        key = self._dag_key()
+        if self._dag_cache_key == key and self._dag_cache_val is not None:
+            return self._dag_cache_val
+
+        all_pts = self._collect_all_points() if self.json_data else [ _normalize_point_row(p) for p in (self.points or []) ]
+        by_id: Dict[str, dict] = {}
+        deps: Dict[str, set] = {}
+        for p in all_pts:
+            pid = str(p.get("Id") or "")
+            if not pid: continue
+            by_id[pid] = p
+            refs = p.get("Reference") or []
+            deps[pid] = set(str(x) for x in refs if x is not None)
+
+        # Kahn
+        incoming = {k: set(v) for k, v in deps.items()}
+        outgoing: Dict[str, set] = {}
+        for k, vs in incoming.items():
+            for v in vs:
+                outgoing.setdefault(v, set()).add(k)
+
         order: List[str] = []
+        from collections import deque
+        q = deque(sorted([k for k, s in incoming.items() if not s]))
         while q:
             u = q.popleft()
             order.append(u)
-            for v in rev[u]:
-                indeg[v] -= 1
-                if indeg[v] == 0:
-                    q.append(v)
-        if len(order) != len(by_id):
-            raise ValueError("Cyclic point references detected in section JSON.")
+            for w in list(outgoing.get(u, ())):
+                incoming[w].discard(u)
+                if not incoming[w]:
+                    q.append(w)
 
-        if len(self._dag_cache) > 128:
-            self._dag_cache.clear()
-        self._dag_cache[k] = (order, by_id)
+        # Fallback in case of cycles/missing refs
+        remain = [k for k in deps.keys() if k not in order]
+        if remain:
+            logger.warning("DAG unresolved (cycles/missing refs): %s", remain)
+            order.extend(sorted(remain))
+
+        self._dag_cache_key = key
+        self._dag_cache_val = (order, by_id)
         return order, by_id
 
-    def _loops_idx(self, section_json: dict, ids: List[str]) -> List[np.ndarray]:
-        """
-        Map each JSON 'Loop' to a numpy index array into `ids`.
-        Cached per (id(section_json), tuple(ids)).
-        """
-        key = (id(section_json), tuple(ids))
-        hit = self._loops_cache.get(key)
-        if hit is not None:
-            return hit
+    # ---------------- variable prep & unit nudge ----------------
+    @staticmethod
+    def _collect_used_variable_names(points_like: List[dict]) -> set:
+        """AST-scan of Coord expressions to find variable names (minus reserved)."""
+        used = set()
+        for p in points_like:
+            coord = p.get("Coord") or ["0", "0"]
+            for s in coord[:2]:
+                txt = str(s)
+                try:
+                    node = ast.parse(txt, mode="eval")
+                    for n in ast.walk(node):
+                        if isinstance(n, ast.Name): used.add(n.id)
+                except Exception:
+                    # simple fallback
+                    for token in filter(None, [t.strip() for t in "".join(ch if (ch.isalnum() or ch == "_") else " " for ch in txt).split(" ")]):
+                        if not token[0].isdigit(): used.add(token)
+        return used - _RESERVED_FUNC_NAMES
 
-        loops = (section_json or {}).get("Loops", []) or []
-        id_to_col = {pid: j for j, pid in enumerate(ids)}
-        out: List[np.ndarray] = []
-        for loop in loops:
-            pts = (loop.get("Points", []) or [])
-            idxs = [id_to_col.get((p or {}).get("Id")) for p in pts]
-            idxs = [ix for ix in idxs if ix is not None]
-            if idxs:
-                out.append(np.asarray(idxs, dtype=int))
-
-        if len(self._loops_cache) > 128:
-            self._loops_cache.clear()
-        self._loops_cache[key] = out
+    @staticmethod
+    def _build_var_arrays(results: List[Dict[str, float]], defaults: Dict[str, float], only: Optional[set]) -> Dict[str, np.ndarray]:
+        names = set(only or [])
+        if not names:
+            for d in results or []: names.update(d.keys())
+        S = len(results or [])
+        out: Dict[str, np.ndarray] = {}
+        for n in names:
+            a = np.empty(S, float)
+            for i, row in enumerate(results or []):
+                val = row.get(n, defaults.get(n, 0.0))
+                try: a[i] = float(val)
+                except Exception: a[i] = float(defaults.get(n, 0.0))
+            out[n] = a
         return out
 
-    # ----------------------------- vector solver -----------------------------
+    @staticmethod
+    def _fix_units_inplace(var_arrays: Dict[str, np.ndarray], defaults: Dict[str, float]) -> None:
+        """Tiny heuristic: angle-ish names (W_/Q_/INCL_) close to 0 → likely radians*1000; length-ish small → meters*1000."""
+        def looks_angle(n): n = n.upper(); return n.startswith(("W_","Q_","INCL_"))
+        def looks_len(n):   n = n.upper(); return n.startswith(("B_","T_","BEFF_","EX"))
+        for name, arr in list(var_arrays.items()):
+            a = np.asarray(arr, float); 
+            if a.size == 0: continue
+            d = defaults.get(name)
+            scale = 1.0
+            if d is not None and d != 0:
+                med = float(np.nanmedian(np.abs(a))) or 0.0
+                cands = (1.0, 1000.0, 0.001)
+                pick = min(cands, key=lambda s: abs(med*s - d) / max(1.0, abs(d)))
+                scale = pick
+            else:
+                if looks_angle(name) and np.nanmedian(np.abs(a)) < 0.5: scale = 1000.0
+                if looks_len(name) and 0 < np.nanmedian(np.abs(a)) < 100: scale = 1000.0
+            if scale != 1.0: var_arrays[name] = a * scale
 
-    def _get_point_coords_vectorized(
+    # ---------------- vector evaluation (Euclid + small extras) ----------------
+    def _eval_points_vectorized(
         self,
+        *,
         var_arrays: Dict[str, np.ndarray],
         order: List[str],
         by_id: Dict[str, dict],
-        *,
         negate_x: bool = True,
     ) -> Tuple[List[str], np.ndarray, np.ndarray]:
-        """
-        Evaluate Coord expressions for all points and stations, vectorized.
-
-        Returns:
-          ids : the same `order` list
-          X   : (S,N) local X values (== 'local Y' in the embedding convention)
-          Y   : (S,N) local Y values (== 'local Z' in the embedding convention)
-        """
         S = next((len(a) for a in var_arrays.values() if isinstance(a, np.ndarray)), 1)
         N = len(order)
         X = np.full((S, N), np.nan, float)
         Y = np.full((S, N), np.nan, float)
 
-        ids = list(order)
-        idx_of = {pid: j for j, pid in enumerate(ids)}
-
-        # Safe eval env: vector functions override arrays; sanitize names
-        env_arrays = _sanitize_vars(var_arrays)
-        base_env = {**env_arrays, **_VECTOR_FUNCS}
-
-        self._warned = getattr(self, "_warned", set())
+        idx_of = {pid: j for j, pid in enumerate(order)}
+        env = {**_VECTOR_FUNCS, **_sanitize_vars(var_arrays)}
 
         def eval_vec(expr: Any) -> np.ndarray:
-            """Eval a scalar or vector expression across S stations; returns (S,) float array."""
             try:
-                v = float(expr)  # numeric fast-path
+                v = float(expr)
                 return np.full(S, v, float)
             except Exception:
                 pass
             try:
                 code = _compile_expr(expr)
-                out = eval(code, {"__builtins__": {}}, base_env)
+                out = eval(code, {"__builtins__": {}}, env)
                 out = np.asarray(out, float)
                 return np.full(S, float(out), float) if out.ndim == 0 else out
             except Exception as e:
-                key = (str(expr), type(e).__name__)
-                if key not in self._warned:
-                    print(f"[Section] eval error: {expr!r} -> {e}")
-                    self._warned.add(key)
+                logger.debug("eval %r failed: %s", expr, e)
                 return np.full(S, np.nan, float)
 
-        for j, pid in enumerate(ids):
+        for j, pid in enumerate(order):
             p = by_id[pid]
-            rtype = (p.get("ReferenceType") or p.get("Type", "Euclidean")).lower()
-            refs  = p.get("Reference", []) or []
+            c = p.get("Coord") or ["0", "0"]
+            r = p.get("Reference") or []
+            t = (p.get("ReferenceType") or "Euclidean").strip().lower()
 
-            xr = eval_vec(p["Coord"][0])
-            yr = eval_vec(p["Coord"][1])
-            if negate_x:
-                xr = -xr
+            x = eval_vec(c[0]); y = eval_vec(c[1])
+            if negate_x: x = -x
 
-            # Euclidean (C/E): origin or relative to 1-2 references
-            if rtype in ("c", "carthesian", "e", "euclidean"):
-                if not refs:
-                    X[:, j], Y[:, j] = xr, yr
-                elif len(refs) == 1:
-                    j0 = idx_of[refs[0]]
-                    X[:, j] = xr + X[:, j0]
-                    Y[:, j] = yr + Y[:, j0]
-                elif len(refs) >= 2:
-                    jx, jy = idx_of[refs[0]], idx_of[refs[1]]
-                    X[:, j] = xr + X[:, jx]
-                    Y[:, j] = yr + Y[:, jy]
+            if t in ("euclidean","e","c","carthesian"):
+                if len(r) == 0:
+                    X[:, j], Y[:, j] = x, y
+                elif len(r) == 1:
+                    j0 = idx_of.get(str(r[0]))
+                    if j0 is None: X[:, j], Y[:, j] = x, y
+                    else:          X[:, j], Y[:, j] = x + X[:, j0], y + Y[:, j0]
                 else:
-                    X[:, j], Y[:, j] = xr, yr
+                    jx = idx_of.get(str(r[0])); jy = idx_of.get(str(r[1]))
+                    X[:, j] = x + (X[:, jx] if jx is not None else 0.0)
+                    Y[:, j] = y + (Y[:, jy] if jy is not None else 0.0)
 
-            # Polar (P): (r, t) relative to segment (ref0 -> ref1)
-            elif rtype in ("p", "polar"):
-                if len(refs) < 2:
-                    X[:, j], Y[:, j] = xr, yr
+            elif t in ("polar","p"):
+                if len(r) < 2:
+                    X[:, j], Y[:, j] = x, y
                 else:
-                    j0, j1 = idx_of[refs[0]], idx_of[refs[1]]
-                    dx = X[:, j1] - X[:, j0]
-                    dy = Y[:, j1] - Y[:, j0]
-                    L  = np.hypot(dx, dy)
-                    Ls = np.where(L == 0.0, 1.0, L)
-                    ux, uy = dx / Ls, dy / Ls
-                    vx, vy = -uy, ux
-                    X[:, j] = X[:, j0] + xr * ux + yr * vx
-                    Y[:, j] = Y[:, j0] + xr * uy + yr * vy
+                    j0, j1 = idx_of.get(str(r[0])), idx_of.get(str(r[1]))
+                    if j0 is None or j1 is None:
+                        X[:, j], Y[:, j] = x, y
+                    else:
+                        dx = X[:, j1] - X[:, j0]; dy = Y[:, j1] - Y[:, j0]
+                        L = np.hypot(dx, dy); Ls = np.where(L == 0.0, 1.0, L)
+                        ux, uy = dx/Ls, dy/Ls; vx, vy = -uy, ux
+                        X[:, j] = X[:, j0] + x*ux + y*vx
+                        Y[:, j] = Y[:, j0] + x*uy + y*vy
 
-            # Construction A_Y (CY): vertical from line (ref0-ref1) through ref2.x
-            elif rtype in ("constructionaly", "cy"):
-                if len(refs) == 3:
-                    j1, j2, j3 = idx_of[refs[0]], idx_of[refs[1]], idx_of[refs[2]]
-                    dx = X[:, j2] - X[:, j1]
-                    dy = Y[:, j2] - Y[:, j1]
-                    with np.errstate(divide="ignore", invalid="ignore"):
-                        m = np.where(dx != 0.0, dy / np.where(dx == 0.0, 1.0, dx), 0.0)
-                    c = Y[:, j1] - m * X[:, j1]
-                    Y[:, j] = m * X[:, j3] + c
-                    X[:, j] = X[:, j3]
+            elif t in ("constructionaly","cy"):
+                if len(r) == 3:
+                    j1, j2, j3 = idx_of.get(str(r[0])), idx_of.get(str(r[1])), idx_of.get(str(r[2]))
+                    if None not in (j1, j2, j3):
+                        dx = X[:, j2] - X[:, j1]; dy = Y[:, j2] - Y[:, j1]
+                        with np.errstate(divide="ignore", invalid="ignore"):
+                            m = np.where(dx != 0.0, dy/np.where(dx==0.0,1.0,dx), 0.0)
+                        c0 = Y[:, j1] - m*X[:, j1]
+                        Y[:, j] = m*X[:, j3] + c0; X[:, j] = X[:, j3]
+                    else:
+                        X[:, j], Y[:, j] = x, y
                 else:
-                    X[:, j], Y[:, j] = xr, yr
+                    X[:, j], Y[:, j] = x, y
 
-            # Construction A_Z (CZ): horizontal from line (ref0-ref1) through ref3.y
-            elif rtype in ("constructionalz", "cz"):
-                if len(refs) == 3:
-                    j1, j2, j3 = idx_of[refs[0]], idx_of[refs[1]], idx_of[refs[2]]
-                    dx = X[:, j2] - X[:, j1]
-                    dy = Y[:, j2] - Y[:, j1]
-                    with np.errstate(divide="ignore", invalid="ignore"):
-                        m = np.where(dx != 0.0, dy / np.where(dx == 0.0, 1.0, dx), 0.0)
-                    c = Y[:, j1] - m * X[:, j1]
-                    X[:, j] = np.where(m != 0.0, (Y[:, j3] - c) / m, X[:, j3])
-                    Y[:, j] = Y[:, j3]
+            elif t in ("constructionalz","cz"):
+                if len(r) == 3:
+                    j1, j2, j3 = idx_of.get(str(r[0])), idx_of.get(str(r[1])), idx_of.get(str(r[2]))
+                    if None not in (j1, j2, j3):
+                        dx = X[:, j2] - X[:, j1]; dy = Y[:, j2] - Y[:, j1]
+                        with np.errstate(divide="ignore", invalid="ignore"):
+                            m = np.where(dx != 0.0, dy/np.where(dx==0.0,1.0,dx), 0.0)
+                        c0 = Y[:, j1] - m*X[:, j1]
+                        X[:, j] = np.where(m != 0.0, (Y[:, j3] - c0)/m, X[:, j3]); Y[:, j] = Y[:, j3]
+                    else:
+                        X[:, j], Y[:, j] = x, y
                 else:
-                    X[:, j], Y[:, j] = xr, yr
+                    X[:, j], Y[:, j] = x, y
 
-            # Fallback: treat as Euclidean at origin
             else:
-                X[:, j], Y[:, j] = xr, yr
+                X[:, j], Y[:, j] = x, y
 
-        return ids, X, Y
+        return order, X, Y
 
-    # ----------------------------- var & unit helpers -----------------------------
+    # ---------------- loops index ----------------
+    def _loops_idx(self, ids: List[str]) -> List[np.ndarray]:
+        """Map Loops[].Points Ids to column indices."""
+        jd = self.json_data or {}
+        loops = []
+        id_to_col = {pid: i for i, pid in enumerate(ids)}
+        for lp in jd.get("Loops") or []:
+            idxs = []
+            for p in lp.get("Points") or []:
+                pid = str((p.get("Id") or p.get("id") or p.get("PointName") or "").strip())
+                if pid and pid in id_to_col: idxs.append(id_to_col[pid])
+            if len(idxs) >= 2: loops.append(np.asarray(idxs, dtype=int))
+        return loops
 
-    @staticmethod
-    def _collect_all_points(data: dict) -> List[dict]:
-        """Collect all point definitions from top-level, loops, reinforcements, and zones (deduplicated by Id)."""
-        pts, seen = [], set()
-        for item in (data.get("Points") or []):
-            if item["Id"] not in seen:
-                seen.add(item["Id"]); pts.append(item)
-        for loop in (data.get("Loops") or []):
-            for item in (loop.get("Points") or []):
-                if item["Id"] not in seen:
-                    seen.add(item["Id"]); pts.append(item)
-        for pr in (data.get("PointReinforcements") or []):
-            item = pr["Point"]
-            if item["Id"] not in seen:
-                seen.add(item["Id"]); pts.append(item)
-        for lr in (data.get("LineReinforcements") or []):
-            for item in (lr["PointStart"], lr["PointEnd"]):
-                if item["Id"] not in seen:
-                    seen.add(item["Id"]); pts.append(item)
-        for nez in (data.get("NonEffectiveZones") or []):
-            for item in (nez["PointStart"], nez["PointEnd"]):
-                if item["Id"] not in seen:
-                    seen.add(item["Id"]); pts.append(item)
-        return pts
-
-    @staticmethod
-    def _collect_used_variable_names(section_json: dict) -> set:
-        """Find variable names used in Coord expressions (minus reserved function names)."""
-        used = set()
-        for p in (section_json.get("Points") or []):
-            for expr in (p.get("Coord") or [])[:2]:
-                s = str(expr)
-                try:
-                    node = ast.parse(s, mode="eval")
-                    for n in ast.walk(node):
-                        if isinstance(n, ast.Name):
-                            used.add(n.id)
-                except Exception:
-                    import re
-                    used.update(re.findall(r"[A-Za-z_]\w*", s))
-        used -= _RESERVED_FUNC_NAMES
-        return used
-
-    @staticmethod
-    def _extract_variable_defaults(section_json: dict) -> Dict[str, float]:
+    # ---------------- public: compute local ----------------
+    def compute_local_points(
+        self,
+        *,
+        axis_var_results: List[Dict[str, float]],
+        negate_x: bool = True,
+    ) -> Tuple[List[str], np.ndarray, np.ndarray, List[np.ndarray]]:
         """
-        Read default variable values from JSON.
-        Supports:
-          - dict: {"H_QS": 2750, "W_ST": 75, ...}
-          - list: [{"VariableName": "H_QS", "VariableValue": 2750}, ...]
+        Vector pipeline:
+          1) Gather point-like rows used in your JSONs
+          2) Build DAG (References)
+          3) Build station arrays for used variables (+ light unit fix)
+          4) Evaluate coordinates
+          5) Return (ids, X_mm, Y_mm, loop_indices)
         """
-        defaults: Dict[str, float] = {}
-        raw = section_json.get("Variables") or {}
-        if isinstance(raw, dict):
-            for k, v in raw.items():
-                try:
-                    defaults[str(k)] = float(v)
-                except Exception:
-                    pass
+        if self.json_data:
+            pts = self._collect_all_points()
         else:
-            for v in (raw or []):
-                try:
-                    name = str(v.get("VariableName"))
-                    defaults[name] = float(v.get("VariableValue", 0) or 0.0)
-                except Exception:
-                    pass
-        return defaults
+            pts = [ _normalize_point_row(p) for p in (self.points or []) ]
 
-    @staticmethod
-    def _build_var_arrays_from_results(results: List[dict], defaults: Dict[str, float], keep: set | None = None) -> Dict[str, np.ndarray]:
-        """Build a vector environment: one float array per variable name over S stations."""
-        S = len(results)
-        names = set(defaults.keys())
-        for r in results:
-            names.update(r.keys())
-        if keep:
-            names.update(keep)
-        names -= _RESERVED_FUNC_NAMES
+        used = self._collect_used_variable_names(pts)
+        defaults = self.get_defaults()
+        var_arrays = self._build_var_arrays(axis_var_results, defaults, used)
+        self._fix_units_inplace(var_arrays, defaults)
 
-        out: Dict[str, np.ndarray] = {}
-        for name in sorted(names):
-            default = defaults.get(name, 0.0)
-            it = (float(r.get(name, default) or 0.0) for r in results)
-            out[name] = np.fromiter(it, dtype=float, count=S)
-        return out
+        order, by_id = self.build_dag()
+        ids, X_mm, Y_mm = self._eval_points_vectorized(
+            var_arrays=var_arrays, order=order, by_id=by_id, negate_x=negate_x
+        )
+        loops_idx = self._loops_idx(ids)
+        return ids, X_mm, Y_mm, loops_idx
 
-    def _fix_var_units_inplace(self, var_arrays: Dict[str, np.ndarray], defaults: Dict[str, float]) -> None:
+    # ---------------- minimal from_dict for your rows ----------------
+    @classmethod
+    def from_dict(cls, row: Dict[str, Any]) -> "CrossSection":
         """
-        Harmonize units (heuristics).
-        - Angles: names starting with W_, Q_, INCL_ that look too small -> assume degrees * 1000.
-        - Lengths: names starting with B_, T_, BEFF_, EX that look like meters -> convert to mm.
-        If a default value is available in JSON, prefer the scale that best matches the default.
+        Minimal constructor: map fields that appear in your Crossection_JSON rows.
+        Does not read files; use attach_json_payload to add JSON content.
         """
-        def looks_angle(name: str) -> bool:
-            n = name.upper()
-            return n.startswith("W_") or n.startswith("Q_") or n.startswith("INCL_")
-        def looks_length(name: str) -> bool:
-            n = name.upper()
-            return n.startswith(("B_", "T_", "BEFF_", "EX"))
+        return cls(
+            no=row.get("No"),
+            class_name=row.get("Class"),
+            type=row.get("Type"),
+            description=row.get("Description"),
+            name=row.get("Name"),
+            inactive=row.get("InActive"),
+            ncs=row.get("NCS"),
+            material1=row.get("Material1"),
+            material2=row.get("Material2"),
+            material_reinf=row.get("Material_Reinf"),
+            json_name=row.get("JSON_name"),
+            points=row.get("Points"),
+            variables=row.get("Variables"),
+        )
 
-        for name, arr in list(var_arrays.items()):
-            a = np.asarray(arr, float)
-            if a.size == 0:
-                continue
 
-            def_v = defaults.get(name)
-            scale = 1.0
+# ---------------------------------------------------------------------
+# Tiny self-test: runs purely on your SectionData shape (no Axis needed)
+# ---------------------------------------------------------------------
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
 
-            if def_v is not None and np.isfinite(def_v) and def_v != 0:
-                med = float(np.nanmedian(np.abs(a))) or 0.0
-                candidates = (1.0, 1000.0, 0.001)  # identity, *1000, /1000
-                costs = [abs(med*s - def_v) / max(1.0, abs(def_v)) for s in candidates]
-                scale = candidates[int(np.argmin(costs))]
-            else:
-                if looks_angle(name) and np.nanmedian(np.abs(a)) < 0.5:
-                    scale = 1000.0       # e.g., 0.075 -> 75 deg
-                if looks_length(name) and 0 < np.nanmedian(np.abs(a)) < 100:
-                    scale = 1000.0       # e.g., 8.575 -> 8575 mm
+    # == Minimal sample based on your SectionData ==
+    section_json = {
+        "Points": [
+            {"Id": "O",  "Coord": ["0", "0"], "ReferenceType": "Euclidean"},
+            {"Id": "UM", "Coord": ["0", "H_QS"], "ReferenceType": "Euclidean"},
+            {"Id": "AKL","Coord": ["B_TR/2-37", "T_FBA/COS((Q_NG/100)*(Pi/180))+B_TR/2*Q_NG/100"], "ReferenceType": "Euclidean"},
+            {"Id": "1L","Coord":["-300","100"], "Reference":["AKL"], "ReferenceType":"Euclidean"},
+        ],
+        "Loops": [
+            {"Id":"L1","Points":[{"Id":"O"},{"Id":"UM"},{"Id":"AKL"},{"Id":"1L"}]}
+        ],
+        "Variables": {
+            "H_QS": 2750.000238418579,
+            "B_TR": 8575.000762939453,
+            "T_FBA": 600.0000238418579,
+            "Q_NG": 3.0
+        }
+    }
 
-            if scale != 1.0:
-                var_arrays[name] = a * scale
+    # Row info (only to fill metadata; not used for geometry when JSON is attached)
+    row = {
+        "No":"1","Class":"CrossSection","Type":"Deck","Description":"test","Name":"MASTER_Deck",
+        "NCS":111,"Material1":101,"Material2":0,"Material_Reinf":200,
+        "JSON_name":["MASTER_SECTION\\SectionData.json"],
+    }
 
-    @staticmethod
-    def _results_signature(results: List[Dict[str, float]], used: set) -> Tuple:
-        """
-        Compact signature so cached geometry reflects meaningful var changes.
-        We use up to 3 samples (first/middle/last) of each *used* variable.
-        """
-        if not results:
-            return ()
-        idxs = [0, len(results)//2, len(results)-1] if len(results) > 2 else [0, len(results)-1]
-        sig = []
-        for name in sorted(used or []):
-            vals = []
-            for i in idxs:
-                v = results[i].get(name, 0.0)
-                try:
-                    vals.append(round(float(v), 6))
-                except Exception:
-                    vals.append(0.0)
-            sig.append((name, tuple(vals)))
-        return tuple(sig)
+    cs = CrossSection.from_dict(row)
+    cs.attach_json_payload(section_json)
+
+    # Two stations: station 0 = defaults; station 1 bumps H_QS
+    st0 = cs.get_defaults()
+    st1 = dict(st0); st1["H_QS"] = st0["H_QS"] + 250.0
+    ids, X_mm, Y_mm, loops_idx = cs.compute_local_points(axis_var_results=[st0, st1])
+
+    print("ids:", ids[:8], "… (total:", len(ids), ")")
+    print("X shape:", X_mm.shape, "Y shape:", Y_mm.shape)
+    print("station0 first 3:", list(zip(X_mm[0,:3], Y_mm[0,:3])))
+    print("station1 first 3:", list(zip(X_mm[1,:3], Y_mm[1,:3])))
+    print("loops:", [idx.tolist() for idx in loops_idx])

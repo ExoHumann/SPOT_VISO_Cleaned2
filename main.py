@@ -880,16 +880,16 @@ if __name__ == "__main__":
     ctx = loader.ctx
     vis_objs_all = loader.vis_objs
 
-    for ncs, cs in ctx.crosssec_by_ncs.items():
-        npts, nloops = cs.geometry_counts()
-        print(f"[check] {getattr(cs,'name','?')} (ncs={ncs}) -> points={npts}, loops={nloops}, json={bool(cs.json_data)}")
+    #for ncs, cs in ctx.crosssec_by_ncs.items():
+        #npts, nloops = cs.geometry_counts()
+        #print(f"[check] {getattr(cs,'name','?')} (ncs={ncs}) -> points={npts}, loops={nloops}, json={bool(cs.json_data)}")
 
 
     def compute_object_geometry(obj, ctx, stations_m=None, slices=None, twist_deg=0.0, negate_x=True):
         if isinstance(obj, PierObject):
             return obj.compute_geometry(ctx=ctx, stations_m=stations_m, slices=slices, twist_deg=twist_deg, negate_x=negate_x)
         if isinstance(obj, DeckObject):
-            return obj.compute_geometry(ctx=ctx, stations_m=stations_m, twist_deg=twist_deg, negate_x=negate_x)
+            return obj.compute_geometry(ctx=ctx, stations_m=stations_m, twist_deg=twist_deg+90, negate_x=negate_x)
         if isinstance(obj, FoundationObject):
             return obj.compute_geometry(ctx=ctx, stations_m=stations_m, twist_deg=twist_deg, negate_x=negate_x)
         # fallback
