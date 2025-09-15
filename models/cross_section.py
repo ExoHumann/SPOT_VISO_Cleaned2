@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import numpy as np
 
 # utils must expose these names; same as your existing module
-from utils import (
+from .utils import (
     _compile_expr,        # compiles a safe expression once
     _sanitize_vars,       # sanitizes scalar env
     _SCALAR_FUNCS,        # {'sin': ..., 'cos': ..., 'Pi': ...} (scalar)
