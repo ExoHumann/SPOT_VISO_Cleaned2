@@ -906,6 +906,7 @@ if __name__ == "__main__":
     print("embedded shape:", P_mm.shape)
 
     from viso_ploter import plot_local_points_with_axes_table
+   
     plot_local_points_with_axes_table(ids_, X, Y, loops)
 
     
