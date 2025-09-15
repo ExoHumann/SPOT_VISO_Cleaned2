@@ -14,7 +14,7 @@ import numpy as np
 from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
 
-from axis import Axis
+#from axis import Axis
 
 
 try:
@@ -106,134 +106,134 @@ def safe_eval_scalar(expr: str, vars_: Dict[str, float]) -> float:
         return float('nan')
 
 
-# Hashing Utilities
-def tiny_hash(arr: Optional[List[float]]) -> str:
-    """Generate small hash for arrays (from AddClasses.py)."""
-    if arr is None:
-        arr = []
-    data = (','.join(str(float(v)) for v in arr)).encode('utf-8')
-    return hashlib.blake2b(data, digest_size=12).hexdigest()
+# # Hashing Utilities
+# def tiny_hash(arr: Optional[List[float]]) -> str:
+#     """Generate small hash for arrays (from AddClasses.py)."""
+#     if arr is None:
+#         arr = []
+#     data = (','.join(str(float(v)) for v in arr)).encode('utf-8')
+#     return hashlib.blake2b(data, digest_size=12).hexdigest()
 
-# Caching Utilities
-@lru_cache(maxsize=128)
-def cached_axis(stations: Tuple[float, ...], x: Tuple[float, ...], y: Tuple[float, ...], z: Tuple[float, ...]) -> 'Axis':
-    """Cached Axis creation (from AddClasses.py, main.py)."""
-    from models.axis import Axis
-    return Axis(stations=list(stations), x_coords=list(x), y_coords=list(y), z_coords=list(z), units='m')
+# # Caching Utilities
+# @lru_cache(maxsize=128)
+# def cached_axis(stations: Tuple[float, ...], x: Tuple[float, ...], y: Tuple[float, ...], z: Tuple[float, ...]) -> 'Axis':
+#     """Cached Axis creation (from AddClasses.py, main.py)."""
+#     from models.axis import Axis
+#     return Axis(stations=list(stations), x_coords=list(x), y_coords=list(y), z_coords=list(z), units='m')
 
-# JSON Utilities
-def load_json(path: str) -> Dict:
-    """Load JSON with fastjson fallback (from spot_loader.py, AddClasses.py)."""
-    logger.debug(f"Loading JSON from {path}")
-    try:
-        if fastjson:
-            with open(path, 'rb') as f:
-                return fastjson.loads(f.read())
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception as e:
-        logger.error(f"Failed to load {path}: {e}")
-        raise
+# # JSON Utilities
+# def load_json(path: str) -> Dict:
+#     """Load JSON with fastjson fallback (from spot_loader.py, AddClasses.py)."""
+#     logger.debug(f"Loading JSON from {path}")
+#     try:
+#         if fastjson:
+#             with open(path, 'rb') as f:
+#                 return fastjson.loads(f.read())
+#         with open(path, 'r', encoding='utf-8') as f:
+#             return json.load(f)
+#     except Exception as e:
+#         logger.error(f"Failed to load {path}: {e}")
+#         raise
 
-# Index Builders
-def build_axis_index(axis_data: List[Dict], mapping: Dict[str, str]) -> Dict[str, Dict]:
-    """Build axis index (from AddClasses.py, spot_loader.py)."""
-    class_key = mapping.get("class", "Class")
-    name_key = mapping.get("name", "Name")
-    index = {}
-    for d in axis_data or []:
-        if d.get(class_key) == "Axis":
-            name = str(d.get(name_key, "")).strip().lower()
-            if name:
-                index[name] = d
-    return index
+# # Index Builders
+# def build_axis_index(axis_data: List[Dict], mapping: Dict[str, str]) -> Dict[str, Dict]:
+#     """Build axis index (from AddClasses.py, spot_loader.py)."""
+#     class_key = mapping.get("class", "Class")
+#     name_key = mapping.get("name", "Name")
+#     index = {}
+#     for d in axis_data or []:
+#         if d.get(class_key) == "Axis":
+#             name = str(d.get(name_key, "")).strip().lower()
+#             if name:
+#                 index[name] = d
+#     return index
 
-def build_cross_section_index(cross_sections: List[Any]) -> Dict[int, Any]:
-    """Build cross-section index (from AddClasses.py)."""
-    index = {}
-    for cs in cross_sections or []:
-        try:
-            index[int(cs.ncs)] = cs
-        except Exception as e:
-            logger.warning(f"Invalid NCS: {e}")
-    return index
+# def build_cross_section_index(cross_sections: List[Any]) -> Dict[int, Any]:
+#     """Build cross-section index (from AddClasses.py)."""
+#     index = {}
+#     for cs in cross_sections or []:
+#         try:
+#             index[int(cs.ncs)] = cs
+#         except Exception as e:
+#             logger.warning(f"Invalid NCS: {e}")
+#     return index
 
-# Math and Geometry Utilities (from Axis.py)
-def rotate_vecs_about_axis(V, U, theta):
-    """Rotate vectors (from Axis.py)."""
-    theta = np.asarray(theta, float).reshape(-1, 1)
-    c = np.cos(theta); s = np.sin(theta)
-    udv = (U * V).sum(axis=1, keepdims=True)
-    return V * c + np.cross(U, V) * s + U * udv * (1.0 - c)
+# # Math and Geometry Utilities (from Axis.py)
+# def rotate_vecs_about_axis(V, U, theta):
+#     """Rotate vectors (from Axis.py)."""
+#     theta = np.asarray(theta, float).reshape(-1, 1)
+#     c = np.cos(theta); s = np.sin(theta)
+#     udv = (U * V).sum(axis=1, keepdims=True)
+#     return V * c + np.cross(U, V) * s + U * udv * (1.0 - c)
 
-def rotate_180_about_axis(P, A, U):
-    """180° rotation (from Axis.py)."""
-    R = P - A[:, None, :]
-    dot = np.einsum('sni,si->sn', R, U)
-    Rnew = 2.0*dot[:, :, None]*U[:, None, :] - R
-    return A[:, None, :] + Rnew
+# def rotate_180_about_axis(P, A, U):
+#     """180° rotation (from Axis.py)."""
+#     R = P - A[:, None, :]
+#     dot = np.einsum('sni,si->sn', R, U)
+#     Rnew = 2.0*dot[:, :, None]*U[:, None, :] - R
+#     return A[:, None, :] + Rnew
 
-def section_basis_from_tangent(U):
-    """Basis from tangent (from Axis.py)."""
-    U = np.asarray(U, float)
-    up = np.array([0.0, 0.0, 1.0])
-    dot_up = (U * up[None, :]).sum(axis=1)
-    near_up = np.abs(dot_up) > 0.9
-    ref = np.tile(up, (len(U), 1))
-    ref[near_up] = np.array([1.0, 0.0, 0.0])
-    Y = np.cross(ref, U)
-    Yn = np.linalg.norm(Y, axis=1, keepdims=True); Yn[Yn == 0.0] = 1.0
-    Y /= Yn
-    Z = np.cross(U, Y)
-    Zn = np.linalg.norm(Z, axis=1, keepdims=True); Zn[Zn == 0.0] = 1.0
-    Z /= Zn
-    mask = Z[:, 2] < 0.0
-    if np.any(mask):
-        Y[mask] *= -1.0
-        Z[mask] *= -1.0
-    return Y, Z
+# def section_basis_from_tangent(U):
+#     """Basis from tangent (from Axis.py)."""
+#     U = np.asarray(U, float)
+#     up = np.array([0.0, 0.0, 1.0])
+#     dot_up = (U * up[None, :]).sum(axis=1)
+#     near_up = np.abs(dot_up) > 0.9
+#     ref = np.tile(up, (len(U), 1))
+#     ref[near_up] = np.array([1.0, 0.0, 0.0])
+#     Y = np.cross(ref, U)
+#     Yn = np.linalg.norm(Y, axis=1, keepdims=True); Yn[Yn == 0.0] = 1.0
+#     Y /= Yn
+#     Z = np.cross(U, Y)
+#     Zn = np.linalg.norm(Z, axis=1, keepdims=True); Zn[Zn == 0.0] = 1.0
+#     Z /= Zn
+#     mask = Z[:, 2] < 0.0
+#     if np.any(mask):
+#         Y[mask] *= -1.0
+#         Z[mask] *= -1.0
+#     return Y, Z
 
-def embed_points_to_global_mm(axis, stations_mm, X_mm, Y_mm, twist_deg=0.0):
-    """Embed points to global (from Axis.py)."""
-    stations_mm = np.asarray(stations_mm, float)
-    X_mm = np.asarray(X_mm, float)
-    Y_mm = np.asarray(Y_mm, float)
+# def embed_points_to_global_mm(axis, stations_mm, X_mm, Y_mm, twist_deg=0.0):
+#     """Embed points to global (from Axis.py)."""
+#     stations_mm = np.asarray(stations_mm, float)
+#     X_mm = np.asarray(X_mm, float)
+#     Y_mm = np.asarray(Y_mm, float)
 
-    A, U = axis.frames_for_stations(tuple(np.round(stations_mm, 6)))
+#     A, U = axis.frames_for_stations(tuple(np.round(stations_mm, 6)))
 
-    Yb, Zb = section_basis_from_tangent(U)
+#     Yb, Zb = section_basis_from_tangent(U)
 
-    if np.any(np.asarray(twist_deg) != 0.0):
-        theta = np.deg2rad(np.asarray(twist_deg, float)).reshape(len(stations_mm))
-        Yb = rotate_vecs_about_axis(Yb, U, theta)
-        Zb = rotate_vecs_about_axis(Zb, U, theta)
+#     if np.any(np.asarray(twist_deg) != 0.0):
+#         theta = np.deg2rad(np.asarray(twist_deg, float)).reshape(len(stations_mm))
+#         Yb = rotate_vecs_about_axis(Yb, U, theta)
+#         Zb = rotate_vecs_about_axis(Zb, U, theta)
 
-    P = (A[:, None, :] +
-         X_mm[:, :, None] * Yb[:, None, :] +
-         Y_mm[:, :, None] * Zb[:, None, :])
-    P = rotate_180_about_axis(P, A, U)
-    return P
+#     P = (A[:, None, :] +
+#          X_mm[:, :, None] * Yb[:, None, :] +
+#          Y_mm[:, :, None] * Zb[:, None, :])
+#     P = rotate_180_about_axis(P, A, U)
+#     return P
 
-# Data Cleaning Utilities (from main.py)
-def clean_numbers(nums: List[float]) -> List[float]:
-    """Clean list by removing None/NaN (from main.py _clean_numbers)."""
-    return [n for n in nums if n is not None and not math.isnan(n)]
+# # Data Cleaning Utilities (from main.py)
+# def clean_numbers(nums: List[float]) -> List[float]:
+#     """Clean list by removing None/NaN (from main.py _clean_numbers)."""
+#     return [n for n in nums if n is not None and not math.isnan(n)]
 
-def extend_numeric(base: List[float], addition: List[float]) -> None:
-    """Extend list with addition (inferred from main.py _extend_numeric)."""
-    base.extend(addition)
+# def extend_numeric(base: List[float], addition: List[float]) -> None:
+#     """Extend list with addition (inferred from main.py _extend_numeric)."""
+#     base.extend(addition)
 
-# Other general functions (e.g., from main.py solver_for, but keep in main if specific)
+# # Other general functions (e.g., from main.py solver_for, but keep in main if specific)
 
-if __name__ == "__main__":
-    logger.info("Utils test.")
-    # Test hash
-    print(tiny_hash([1.0, 2.0]))
-    # Test axis
-    test_stations = (0.0, 100.0)
-    test_x = (0.0, 100.0)
-    test_y = (0.0, 100.0)
-    test_z = (0.0, 0.0)
-    ax = cached_axis(test_stations, test_x, test_y, test_z)
-    print(ax)
-    # Add more as needed
+# if __name__ == "__main__":
+#     logger.info("Utils test.")
+#     # Test hash
+#     print(tiny_hash([1.0, 2.0]))
+#     # Test axis
+#     test_stations = (0.0, 100.0)
+#     test_x = (0.0, 100.0)
+#     test_y = (0.0, 100.0)
+#     test_z = (0.0, 0.0)
+#     ax = cached_axis(test_stations, test_x, test_y, test_z)
+#     print(ax)
+#     # Add more as needed
