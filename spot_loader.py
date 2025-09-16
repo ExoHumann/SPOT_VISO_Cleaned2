@@ -226,16 +226,6 @@ class SpotLoader:
         cross_sections, _ = self._load_typed(CrossSection, cs_rows, axis_rows=axis_rows)
         mainstations,  _  = self._load_typed(MainStation,  ms_rows, axis_rows=axis_rows)
 
-        # CrossSection now owns JSON attachment + caches
-        for cs in cross_sections:
-            try:
-                cs.ensure_geometry_loaded(
-                    json_loader=self._json_loader_repo,
-                    default_json_by_type=_DEFAULT_JSON_BY_TYPE,
-                )
-            except Exception as e:
-                self._dbg(f"[SpotLoader] CrossSection ensure_geometry_loaded failed for {getattr(cs, 'name', '?')}: {e}")
-
         # --- context
         self.ctx = VisoContext.from_json(axis_rows, cross_sections, mainstations, mapping_cfg=MAP, verbose=False)
         if self.verbose:

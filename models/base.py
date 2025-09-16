@@ -201,9 +201,6 @@ class BaseObject:
         raw = getattr(self, "axis_variables", None) or []
         self.axis_variables_obj = AxisVariable.create_axis_variables(raw)
 
-
-
-
     def evaluate_axis_vars_at_stations(self, stations_m: List[float]) -> List[Dict[str, float]]:
         if not stations_m:
             return []

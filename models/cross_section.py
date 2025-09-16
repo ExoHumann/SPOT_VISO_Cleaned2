@@ -10,13 +10,22 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import numpy as np
 
 # utils must expose these names; same as your existing module
-from utils import (
-    _compile_expr,        # compiles a safe expression once
-    _sanitize_vars,       # sanitizes scalar env
-    _SCALAR_FUNCS,        # {'sin': ..., 'cos': ..., 'Pi': ...} (scalar)
-    _VECTOR_FUNCS,        # same, but numpy versions
-    _RESERVED_FUNC_NAMES, # tokens to ignore as "variables"
-)
+try:
+    from .utils import (
+        _compile_expr,        # compiles a safe expression once
+        _sanitize_vars,       # sanitizes scalar env
+        _SCALAR_FUNCS,        # {'sin': ..., 'cos': ..., 'Pi': ...} (scalar)
+        _VECTOR_FUNCS,        # same, but numpy versions
+        _RESERVED_FUNC_NAMES, # tokens to ignore as "variables"
+    )
+except ImportError:
+    from utils import (
+        _compile_expr,        # compiles a safe expression once
+        _sanitize_vars,       # sanitizes scalar env
+        _SCALAR_FUNCS,        # {'sin': ..., 'cos': ..., 'Pi': ...} (scalar)
+        _VECTOR_FUNCS,        # same, but numpy versions
+        _RESERVED_FUNC_NAMES, # tokens to ignore as "variables"
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +175,10 @@ class CrossSection:
     json_data: Optional[Dict[str, Any]] = field(default=None, init=False, repr=False)
     json_source: Optional[str] = field(default=None, init=False, repr=False)
 
+    #Auto load controlls
+    auto_load_from_json_name: bool = True
+    default_json_by_type: Optional[Dict[str, List[str]]] = None
+
     # DAG cache
     _dag_order: List[str] = field(default_factory=list, init=False, repr=False)
     _dag_by_id: Dict[str, dict] = field(default_factory=dict, init=False, repr=False)
@@ -188,8 +201,15 @@ class CrossSection:
             except Exception:
                 logger.debug("CrossSection(%r): failed to int(%s=%r)", self.name, attr, v)
 
-    # -------------------------------------------------------------------------
-    # Geometry attach / inflate (owned here, not in the loader)
+        # Auto-load geometry from json_name right away (not inside the loop)    
+        if self.auto_load_from_json_name and self.json_data is None:           
+            try:                                                                
+                self.ensure_geometry_loaded(default_json_by_type=self.default_json_by_type)  
+            except Exception as e:                                              
+                logger.debug("CrossSection(%r) auto-load failed: %s", self.name, e)  
+
+    ## -------------------------------------------------------------------------
+    # Geometry attach / inflate
     # -------------------------------------------------------------------------
     def attach_json_payload(self, payload: Dict[str, Any], *, source: Optional[str] = None) -> None:
         if isinstance(payload, dict):
@@ -197,22 +217,15 @@ class CrossSection:
             self.json_source = source
 
     def inflate_points_from_json(self) -> None:
-        """
-        Surface a de-duplicated, canonical list of points from json_data (Points + Loop points).
-        """
         if not isinstance(self.json_data, dict):
             return
         flat = _collect_all_points(self.json_data)
         self.points = flat
 
     def prime_caches(self) -> None:
-        """
-        Ensure points exist and build the point dependency DAG once.
-        """
         if not (isinstance(self.points, list) and self.points) and isinstance(self.json_data, dict):
             self.inflate_points_from_json()
 
-        # DAG
         by_id: Dict[str, dict] = {}
         deps: Dict[str, set] = {}
         for p in (self.points or []):
@@ -221,7 +234,6 @@ class CrossSection:
             r = p.get("Reference") or []
             deps[pid] = set(str(x) for x in (r or []) if x is not None)
 
-        # Kahn
         incoming = {k: set(v) for k, v in deps.items()}
         outgoing: Dict[str, set] = {k: set() for k in deps}
         for k, vs in deps.items():
@@ -229,8 +241,8 @@ class CrossSection:
                 outgoing.setdefault(v, set()).add(k)
 
         order: List[str] = []
-        roots = sorted([k for k, s in incoming.items() if not s])
         from collections import deque
+        roots = sorted([k for k, s in incoming.items() if not s])
         q = deque(roots)
         while q:
             u = q.popleft()
@@ -248,38 +260,41 @@ class CrossSection:
         self._dag_order = order
         self._dag_by_id = by_id
 
-    # Optional: let the class load its own JSON, so loader stays dumb.
     def ensure_geometry_loaded(
         self,
         *,
-        json_loader: Optional[Callable[[str], Dict[str, Any]]] = None,
         default_json_by_type: Optional[Dict[str, List[str]]] = None,
     ) -> None:
         """
-        If no json_data is attached yet, try to load it from json_name (str or list),
-        falling back to a small per-Type table (paths relative to repo or absolute).
+        Load JSON from self.json_name (str or list). If not set or fails, try per-Type defaults.
         """
         if isinstance(self.json_data, dict):
             self.prime_caches()
             return
 
-        # tiny defaults (can be overridden by caller)
         default_table = default_json_by_type or {
             "Deck":        ["MASTER_SECTION/SectionData.json"],
             "Foundation":  ["MASTER_SECTION/MASTER_Foundation.json"],
             "Pier":        ["MASTER_SECTION/MASTER_Pier.json"],
         }
 
-        # default loader that tries the path as-is (or relative to CWD)
         def _default_loader(path: str) -> Dict[str, Any]:
+            # 1) absolute or CWD-relative
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     return json.load(f)
             except Exception:
+                pass
+            # 2) file relative to this module
+            try:
+                here = os.path.dirname(__file__)
+                p2 = os.path.join(here, path)
+                with open(p2, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
                 return {}
-        jl = json_loader or _default_loader
 
-        # collect candidates
+        # Collect candidates
         candidates: List[str] = []
         jn = self.json_name
         if isinstance(jn, str) and jn.strip():
@@ -287,10 +302,10 @@ class CrossSection:
         elif isinstance(jn, (list, tuple)):
             candidates += [s for s in jn if isinstance(s, str) and s.strip()]
 
-        candidates += default_table.get((self.type or "").strip(), [])
+        candidates += (default_table.get((self.type or "").strip(), []) or [])
 
         for cand in candidates:
-            data = jl(cand) or {}
+            data = _default_loader(cand) or {}
             if isinstance(data, dict) and (isinstance(data.get("Points"), list) or isinstance(data.get("Loops"), list)):
                 self.attach_json_payload(data, source=cand)
                 break
@@ -551,52 +566,6 @@ class CrossSection:
         return ids, stations_mm, P_mm, X_mm, Y_mm, loops_idx
 
     # -------------------------------------------------------------------------
-    # Legacy scalar preview (kept small; optional)
-    # -------------------------------------------------------------------------
-    class ReferenceFrame:
-        """Small scalar path; useful for quick checks."""
-        def __init__(self, reference_type, reference=None, points=None, variables=None):
-            self.reference_type = reference_type
-            self.reference = reference or []
-            self.points = points or []
-            self.variables = variables or {}
-
-        def eval_equation(self, string_equation):
-            try:
-                return float(string_equation)
-            except (TypeError, ValueError):
-                pass
-            code = _compile_expr(string_equation)
-            env = {**_SCALAR_FUNCS, **_sanitize_vars(self.variables)}
-            try:
-                val = eval(code, {"__builtins__": {}}, env)
-                return float(val)
-            except Exception as e:
-                logger.debug("Scalar eval error %r: %s", string_equation, e)
-                return float("nan")
-
-        def _euclid(self, coords):
-            x = self.eval_equation(coords[0]); y = self.eval_equation(coords[1])
-            return {'coords': {'x': x, 'y': y}}
-
-        def get_coordinates(self, coords):
-            rt = (self.reference_type or '').lower()
-            if rt in ("c", "carthesian", "e", "euclidean"): return self._euclid(coords)
-            if rt in ("p", "polar"):
-                r = self.eval_equation(coords[0]); a = math.radians(self.eval_equation(coords[1]))
-                return {'coords': {'x': r*math.cos(a), 'y': r*math.sin(a)}}
-            return self._euclid(coords)
-
-    def compute_local_points_scalar(self, env_vars: Dict[str, float]) -> List[Dict[str, float]]:
-        out = []
-        for p in (self.points or []):
-            coord = p.get("Coord") or [0, 0]
-            rf = CrossSection.ReferenceFrame(reference_type='euclidean', reference=p.get("Reference"), points=out, variables=env_vars)
-            xy = rf.get_coordinates(coord)["coords"]
-            out.append({"id": p.get("Id") or p.get("id"), "x": float(xy["x"]), "y": float(xy["y"])})
-        return out
-
-    # -------------------------------------------------------------------------
     # Friendly constructor from row (uses mapping elsewhere; loader stays simple)
     # -------------------------------------------------------------------------
     @classmethod
@@ -604,7 +573,6 @@ class CrossSection:
         cls,
         row: Dict[str, Any],
         *,
-        json_loader: Optional[Callable[[str], Dict[str, Any]]] = None,
         default_json_by_type: Optional[Dict[str, List[str]]] = None,
         debug: bool | None = None,
     ) -> "CrossSection":
@@ -622,20 +590,19 @@ class CrossSection:
             json_name=row.get("JSON_name") or row.get("JsonName") or row.get("json_name"),
             variables=row.get("Variables"),
             sofi_code=row.get("SofiCode") or row.get("SOFiCode") or row.get("SOFiSTiKCustomCode"),
+            auto_load_from_json_name=True,
+            default_json_by_type=default_json_by_type,
         )
 
-        # normalize json_name to list[str] | str | None (leave as-is; ensure_geometry_loaded will handle it)
+        # normalize json_name
         jn = obj.json_name
-        if isinstance(jn, list) and len(jn) == 1:
-            if isinstance(jn[0], str) and jn[0].strip():
-                obj.json_name = jn  # keep list
+        if isinstance(jn, list) and len(jn) == 1 and isinstance(jn[0], str) and jn[0].strip():
+            obj.json_name = jn  # keep list form if you want
         elif isinstance(jn, str):
             obj.json_name = jn
 
-        # If you want the class to auto-load geometry, call:
-        obj.ensure_geometry_loaded(json_loader=json_loader, default_json_by_type=default_json_by_type)
+        # post_init already attempted loading
         return obj
-
 
 # ----------------------------------------------------------------------------- #
 # Minimal test (runs if you execute this file directly)
@@ -882,14 +849,13 @@ if __name__ == "__main__":
     }
     }
 
-
     cs = CrossSection.from_dict({
         "No": "1", "Class": "CrossSection", "Type": "Deck", "Name": "MASTER_Deck",
-        "NCS": 111, "JSON_name": ["C:\Git\SPOT_VISO\MASTER_SECTION\SectionData.json"], "Variables": [{"VariableName": "H_QS", "VariableValue": 2750.0}],
+        "NCS": 111, "JSON_name": ["MASTER_SECTION/MASTER_Pier.json"], "Variables": [{"VariableName": "H_QS", "VariableValue": 2750.0}],
     })
-    cs.attach_json_payload(json_data)
-    cs.inflate_points_from_json()
-    cs.prime_caches()
+    # cs.attach_json_payload(json_data)
+    # cs.inflate_points_from_json()
+    # cs.prime_caches()
 
     # two stations; axis variables in meters here to exercise ×1000
     axis_vars = [{"H_QS": 6.75}, {"H_QS": 2.75}]
