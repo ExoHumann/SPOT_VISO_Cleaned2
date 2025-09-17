@@ -17,6 +17,50 @@ import logging
 
 log = logging.getLogger(__name__)
 
+from typing import Dict, List, Optional
+import os, json
+from models.cross_section import CrossSection
+from models.linear_object import LinearObject
+
+def load_axis_from_rows(axis_rows: List[Dict], axis_name: str) -> Axis:
+    row = next((r for r in axis_rows if r.get("Class") == "Axis" and str(r.get("Name")) == axis_name), None)
+    if row is None:
+        raise RuntimeError(f"Axis '{axis_name}' not found.")
+    s = [float(x) for x in row.get("StaionValue", [])]
+    x = [float(v) for v in row.get("CurvCoorX", [])]
+    y = [float(v) for v in row.get("CurvCoorY", [])]
+    z = [float(v) for v in row.get("CurvCoorZ", [])]
+    return Axis(s, x, y, z, units="m")
+
+def choose_section_json_path(deck_row: Dict, cross_rows: List[Dict], fallback_path: str) -> str:
+    cs_names = deck_row.get("CrossSection@Name") or []
+    for nm in cs_names:
+        cs_row = next((r for r in cross_rows if r.get("Class")=="CrossSection" and str(r.get("Name"))==nm), None)
+        if cs_row is None: continue
+        jnames = cs_row.get("JSON_name") or []
+        if isinstance(jnames, list) and jnames:
+            cand = jnames[0].replace("\\", "/")
+            if os.path.isabs(cand):
+                return cand
+            # fallback: keep provided path’s directory, but use filename from JSON_name
+            base_dir = os.path.dirname(fallback_path) or "."
+            return os.path.join(base_dir, os.path.basename(cand))
+    return fallback_path
+
+def load_section(path: str, name: Optional[str]=None) -> CrossSection:
+    return CrossSection.from_file(path, name=name or "Section")
+
+def make_linear_object(deck_row: Dict, axis: Axis, section: CrossSection) -> LinearObject:
+    axis_vars = deck_row.get("AxisVariables") or []
+    if isinstance(axis_vars, dict):
+        axis_vars = []
+    return LinearObject(
+        name=str(deck_row.get("Name") or "LinearObject"),
+        axis=axis,
+        section=section,
+        axis_variables_rows=axis_vars,
+    )
+
 def _get_cls_map(cls, mapping_config: dict) -> dict:
     """Find the mapping block for a class, accepting class object or name."""
     if cls in mapping_config:
@@ -147,7 +191,6 @@ def _build_axis_index(axis_data, axis_map=None):
         pass
     return idx
 
-@dataclass(slots=True)
 class BaseObject:
     """
     Shared behavior & state for DeckObject / PierObject / FoundationObject.

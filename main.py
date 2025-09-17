@@ -850,252 +850,254 @@ import os, sys, json
 import plotly.graph_objects as go
 import numpy as np
 
-from models import PierObject
-from models import DeckObject
-from models import FoundationObject
-from models import AxisVariable
+# from models import PierObject
+# from models import DeckObject
+# from models import FoundationObject
+# from models import AxisVariable
 
-from spot_loader import SpotLoader
-from models import VisoContext
+# from spot_loader import SpotLoader
+# from models import VisoContext
 # get_plot_traces_matrix imported from wherever you keep it
 #from models import get_plot_traces_matrix   # or your actual path
 
 
 
 
-if __name__ == "__main__":
-    import logging, os, json, numpy as np
-    import plotly.graph_objects as go
-
-    logging.basicConfig(level=logging.INFO)  # INFO or DEBUG while tuning
-
-    MASTER_GIT = r"C:\Git\SPOT_VISO_krzys\SPOT_VISO\GIT"
-    BRANCH     = "MAIN"
-
-    loader = (SpotLoader(master_folder=MASTER_GIT, branch=BRANCH, verbose=True)
-              .load_raw()
-              .group_by_class()
-              .build_all_with_context())   # make sure this calls your cross-section enrichment
-
-    ctx = loader.ctx
-    vis_objs_all = loader.vis_objs
-
-    #for ncs, cs in ctx.crosssec_by_ncs.items():
-        #npts, nloops = cs.geometry_counts()
-        #print(f"[check] {getattr(cs,'name','?')} (ncs={ncs}) -> points={npts}, loops={nloops}, json={bool(cs.json_data)}")
 
 
-    def compute_object_geometry(obj, ctx, stations_m=None, slices=None, twist_deg=0.0, negate_x=True):
-        if isinstance(obj, PierObject):
-            return obj.compute_geometry(ctx=ctx, stations_m=stations_m, slices=slices, twist_deg=twist_deg, negate_x=negate_x)
-        if isinstance(obj, DeckObject):
-            return obj.compute_geometry(ctx=ctx, stations_m=stations_m, twist_deg=twist_deg+90, negate_x=negate_x)
-        if isinstance(obj, FoundationObject):
-            return obj.compute_geometry(ctx=ctx, stations_m=stations_m, twist_deg=twist_deg, negate_x=negate_x)
-        # fallback
-        return {"ids": [], "stations_mm": np.array([], float), "points_mm": np.zeros((0, 0, 3)),
-                "local_Y_mm": np.zeros((0, 0)), "local_Z_mm": np.zeros((0, 0)), "loops_idx": []}
+# if __name__ == "__main__":
+#     import logging, os, json, numpy as np
+#     import plotly.graph_objects as go
 
-    #print(f"Loaded {len(vis_data_all)} objects from {MASTER_GIT}\\{BRANCH}")
+#     logging.basicConfig(level=logging.INFO)  # INFO or DEBUG while tuning
 
-    fig = go.Figure()
-    _bbox_min = np.array([np.inf, np.inf, np.inf], float)
-    _bbox_max = -_bbox_min
+#     MASTER_GIT = r"C:\Git\SPOT_VISO_krzys\SPOT_VISO\GIT"
+#     BRANCH     = "MAIN"
+
+#     loader = (SpotLoader(master_folder=MASTER_GIT, branch=BRANCH, verbose=True)
+#               .load_raw()
+#               .group_by_class()
+#               .build_all_with_context())   # make sure this calls your cross-section enrichment
+
+#     ctx = loader.ctx
+#     vis_objs_all = loader.vis_objs
+
+#     #for ncs, cs in ctx.crosssec_by_ncs.items():
+#         #npts, nloops = cs.geometry_counts()
+#         #print(f"[check] {getattr(cs,'name','?')} (ncs={ncs}) -> points={npts}, loops={nloops}, json={bool(cs.json_data)}")
+
+
+#     def compute_object_geometry(obj, ctx, stations_m=None, slices=None, twist_deg=0.0, negate_x=True):
+#         if isinstance(obj, PierObject):
+#             return obj.compute_geometry(ctx=ctx, stations_m=stations_m, slices=slices, twist_deg=twist_deg, negate_x=negate_x)
+#         if isinstance(obj, DeckObject):
+#             return obj.compute_geometry(ctx=ctx, stations_m=stations_m, twist_deg=twist_deg+90, negate_x=negate_x)
+#         if isinstance(obj, FoundationObject):
+#             return obj.compute_geometry(ctx=ctx, stations_m=stations_m, twist_deg=twist_deg, negate_x=negate_x)
+#         # fallback
+#         return {"ids": [], "stations_mm": np.array([], float), "points_mm": np.zeros((0, 0, 3)),
+#                 "local_Y_mm": np.zeros((0, 0)), "local_Z_mm": np.zeros((0, 0)), "loops_idx": []}
+
+#     #print(f"Loaded {len(vis_data_all)} objects from {MASTER_GIT}\\{BRANCH}")
+
+#     fig = go.Figure()
+#     _bbox_min = np.array([np.inf, np.inf, np.inf], float)
+#     _bbox_max = -_bbox_min
 
     
 
-    def _update_bbox_from_axis(ax):
-        A = np.c_[np.asarray(ax.x_coords)/1000.0,
-                np.asarray(ax.y_coords)/1000.0,
-                np.asarray(ax.z_coords)/1000.0]
-        nonlocal_min = np.nanmin(A, axis=0)
-        nonlocal_max = np.nanmax(A, axis=0)
-        global _bbox_min, _bbox_max
-        _bbox_min = np.minimum(_bbox_min, nonlocal_min)
-        _bbox_max = np.maximum(_bbox_max, nonlocal_max)
+#     def _update_bbox_from_axis(ax):
+#         A = np.c_[np.asarray(ax.x_coords)/1000.0,
+#                 np.asarray(ax.y_coords)/1000.0,
+#                 np.asarray(ax.z_coords)/1000.0]
+#         nonlocal_min = np.nanmin(A, axis=0)
+#         nonlocal_max = np.nanmax(A, axis=0)
+#         global _bbox_min, _bbox_max
+#         _bbox_min = np.minimum(_bbox_min, nonlocal_min)
+#         _bbox_max = np.maximum(_bbox_max, nonlocal_max)
 
-    def _update_bbox_from_points(P_mm):
-        if P_mm.size == 0: return
-        P = P_mm.reshape(-1, 3) / 1000.0
-        good = np.isfinite(P).all(axis=1)
-        if not good.any(): return
-        P = P[good]
-        global _bbox_min, _bbox_max
-        _bbox_min = np.minimum(_bbox_min, np.min(P, axis=0))
-        _bbox_max = np.maximum(_bbox_max, np.max(P, axis=0))
-
-
-    def smart_stations(obj, vis=None, ctx=None):
-        import numpy as np
-        base = set()
-
-        def _floats(v):
-            if v is None: return []
-            try:
-                if isinstance(v, np.ndarray):
-                    v = v.ravel().tolist()
-                elif not isinstance(v, (list, tuple, set)):
-                    v = [v]
-            except Exception:
-                v = [v]
-            out = []
-            for x in v:
-                try: out.append(float(x))
-                except: pass
-            return out
-
-        # 1) any precomputed stations (if a dict vis row was passed)
-        if isinstance(vis, dict):
-            base.update(_floats(vis.get("stations_to_plot")))
-
-        # 2) object-side breakpoints (meters)
-        for key in ("user_stations", "station_value", "internal_station_value"):
-            base.update(_floats(getattr(obj, key, None)))
-
-        # 3) variable knots (meters)
-        for var in getattr(obj, "axis_variables_obj", []) or []:
-            base.update(_floats(var.xs))
-
-        # 4) axis extents (axis.stations are mm)
-        ax = getattr(obj, "axis_obj", None)
-        if ax is not None:
-            stations_attr = getattr(ax, "stations", None)
-            if stations_attr is not None:
-                try:
-                    S = np.asarray(stations_attr, dtype=float)
-                    if S.size:
-                        base.update([float(S.flat[0])/1000.0, float(S.flat[-1])/1000.0])
-                except Exception:
-                    try:
-                        S = list(stations_attr)
-                        if len(S) >= 2:
-                            base.update([float(S[0])/1000.0, float(S[-1])/1000.0])
-                    except:
-                        pass
-
-        # (optional) mainstations per axis, if your ctx exposes them
-        if ctx is not None:
-            ax_name = getattr(obj, "axis_name", None) or getattr(obj, "object_axis_name", None)
-            try:
-                # try a few likely shapes of your context
-                if hasattr(ctx, "mainstations_by_axis") and ax_name in ctx.mainstations_by_axis:
-                    for ms in ctx.mainstations_by_axis[ax_name]:
-                        base.update(_floats(getattr(ms, "station_value", None)))
-                elif hasattr(ctx, "mainstations"):
-                    for ms in ctx.mainstations:
-                        if getattr(ms, "axis_name", None) == ax_name:
-                            base.update(_floats(getattr(ms, "station_value", None)))
-            except Exception:
-                pass
-
-        # densify like before
-        b = sorted(base)
-        if len(b) < 2: 
-            return [round(v, 8) for v in b]
-
-        out = []
-        for a, c in zip(b[:-1], b[1:]):
-            d = c - a
-            if   d <   5: n = 2
-            elif d <  10: n = 3
-            elif d <  50: n = 10
-            elif d < 100: n = 20
-            elif d < 200: n = 40
-            elif d < 300: n = 30
-            elif d < 400: n = 40
-            elif d < 500: n = 50
-            else:         n = 500
-            step = d / n
-            out.extend(a + j*step for j in range(n))
-        out.append(b[-1])
-        return [round(v, 8) for v in out]
+#     def _update_bbox_from_points(P_mm):
+#         if P_mm.size == 0: return
+#         P = P_mm.reshape(-1, 3) / 1000.0
+#         good = np.isfinite(P).all(axis=1)
+#         if not good.any(): return
+#         P = P[good]
+#         global _bbox_min, _bbox_max
+#         _bbox_min = np.minimum(_bbox_min, np.min(P, axis=0))
+#         _bbox_max = np.maximum(_bbox_max, np.max(P, axis=0))
 
 
-    for vis_row in vis_objs_all:
-        # unify
-        if isinstance(vis_row, dict):
-            obj            = vis_row.get("obj") or vis_row.get("object")
-            name           = vis_row.get("name", getattr(obj, "name", obj.__class__.__name__))
-            section_json   = vis_row.get("json_data")
-            json_file      = vis_row.get("json_file")
-            loops_idx      = vis_row.get("loops_idx")
-            colors         = vis_row.get("colors", {})
-            twist_deg      = float(vis_row.get("AxisRotation", 0.0))
-            stations_to_plot = vis_row.get("stations_to_plot")
-        else:
-            obj            = vis_row
-            name           = getattr(obj, "name", obj.__class__.__name__)
-            section_json   = getattr(obj, "json_data", None)
-            json_file      = getattr(obj, "json_file", None)
-            loops_idx      = getattr(obj, "loops_idx", None)
-            colors         = getattr(obj, "colors", {})
-            twist_deg      = float(getattr(obj, "AxisRotation", getattr(obj, "axis_rotation", 0.0) or 0.0))
-            stations_to_plot = getattr(obj, "stations_to_plot", None)
+#     def smart_stations(obj, vis=None, ctx=None):
+#         import numpy as np
+#         base = set()
 
-        if obj is None:
-            continue
+#         def _floats(v):
+#             if v is None: return []
+#             try:
+#                 if isinstance(v, np.ndarray):
+#                     v = v.ravel().tolist()
+#                 elif not isinstance(v, (list, tuple, set)):
+#                     v = [v]
+#             except Exception:
+#                 v = [v]
+#             out = []
+#             for x in v:
+#                 try: out.append(float(x))
+#                 except: pass
+#             return out
 
-        axis = getattr(obj, "axis_obj", None)
-        if axis is None:
-            continue
+#         # 1) any precomputed stations (if a dict vis row was passed)
+#         if isinstance(vis, dict):
+#             base.update(_floats(vis.get("stations_to_plot")))
 
-        stations_m = smart_stations(obj, ctx=ctx)  # instead of smart_stations(obj, obj)
+#         # 2) object-side breakpoints (meters)
+#         for key in ("user_stations", "station_value", "internal_station_value"):
+#             base.update(_floats(getattr(obj, key, None)))
 
-        geo = compute_object_geometry(
-            obj, ctx=ctx, stations_m=stations_m,
-            slices=getattr(obj, "slices", None),
-            twist_deg=twist_deg, negate_x=True
-        )
+#         # 3) variable knots (meters)
+#         for var in getattr(obj, "axis_variables_obj", []) or []:
+#             base.update(_floats(var.xs))
+
+#         # 4) axis extents (axis.stations are mm)
+#         ax = getattr(obj, "axis_obj", None)
+#         if ax is not None:
+#             stations_attr = getattr(ax, "stations", None)
+#             if stations_attr is not None:
+#                 try:
+#                     S = np.asarray(stations_attr, dtype=float)
+#                     if S.size:
+#                         base.update([float(S.flat[0])/1000.0, float(S.flat[-1])/1000.0])
+#                 except Exception:
+#                     try:
+#                         S = list(stations_attr)
+#                         if len(S) >= 2:
+#                             base.update([float(S[0])/1000.0, float(S[-1])/1000.0])
+#                     except:
+#                         pass
+
+#         # (optional) mainstations per axis, if your ctx exposes them
+#         if ctx is not None:
+#             ax_name = getattr(obj, "axis_name", None) or getattr(obj, "object_axis_name", None)
+#             try:
+#                 # try a few likely shapes of your context
+#                 if hasattr(ctx, "mainstations_by_axis") and ax_name in ctx.mainstations_by_axis:
+#                     for ms in ctx.mainstations_by_axis[ax_name]:
+#                         base.update(_floats(getattr(ms, "station_value", None)))
+#                 elif hasattr(ctx, "mainstations"):
+#                     for ms in ctx.mainstations:
+#                         if getattr(ms, "axis_name", None) == ax_name:
+#                             base.update(_floats(getattr(ms, "station_value", None)))
+#             except Exception:
+#                 pass
+
+#         # densify like before
+#         b = sorted(base)
+#         if len(b) < 2: 
+#             return [round(v, 8) for v in b]
+
+#         out = []
+#         for a, c in zip(b[:-1], b[1:]):
+#             d = c - a
+#             if   d <   5: n = 2
+#             elif d <  10: n = 3
+#             elif d <  50: n = 10
+#             elif d < 100: n = 20
+#             elif d < 200: n = 40
+#             elif d < 300: n = 30
+#             elif d < 400: n = 40
+#             elif d < 500: n = 50
+#             else:         n = 500
+#             step = d / n
+#             out.extend(a + j*step for j in range(n))
+#         out.append(b[-1])
+#         return [round(v, 8) for v in out]
 
 
-        ids         = geo["ids"]
-        stations_mm = geo["stations_mm"]
-        P_mm        = geo["points_mm"]
-        X_mm        = geo["local_Y_mm"]
-        Y_mm        = geo["local_Z_mm"]
-        loops_idx   = geo.get("loops_idx") or loops_idx  # prefer precomputed if present
+#     for vis_row in vis_objs_all:
+#         # unify
+#         if isinstance(vis_row, dict):
+#             obj            = vis_row.get("obj") or vis_row.get("object")
+#             name           = vis_row.get("name", getattr(obj, "name", obj.__class__.__name__))
+#             section_json   = vis_row.get("json_data")
+#             json_file      = vis_row.get("json_file")
+#             loops_idx      = vis_row.get("loops_idx")
+#             colors         = vis_row.get("colors", {})
+#             twist_deg      = float(vis_row.get("AxisRotation", 0.0))
+#             stations_to_plot = vis_row.get("stations_to_plot")
+#         else:
+#             obj            = vis_row
+#             name           = getattr(obj, "name", obj.__class__.__name__)
+#             section_json   = getattr(obj, "json_data", None)
+#             json_file      = getattr(obj, "json_file", None)
+#             loops_idx      = getattr(obj, "loops_idx", None)
+#             colors         = getattr(obj, "colors", {})
+#             twist_deg      = float(getattr(obj, "AxisRotation", getattr(obj, "axis_rotation", 0.0) or 0.0))
+#             stations_to_plot = getattr(obj, "stations_to_plot", None)
 
-        # load section JSON only if needed
-        if section_json is None and json_file and os.path.isfile(json_file):
-            with open(json_file, "r", encoding="utf-8") as f:
-                section_json = json.load(f)
+#         if obj is None:
+#             continue
 
-        traces, xs, ys, zs = get_plot_traces_matrix(
-            axis, section_json, stations_mm, ids, P_mm,
-            X_mm=X_mm, Y_mm=Y_mm, cls_obj=obj, obj_name=name,
-            colors=colors, loops_idx=loops_idx,
-            station_stride_for_loops=1, longitudinal_stride=1, compact_meta=True,
-        )
-        fig.add_traces(traces)
-        _update_bbox_from_points(P_mm)
-        _update_bbox_from_axis(axis)
+#         axis = getattr(obj, "axis_obj", None)
+#         if axis is None:
+#             continue
+
+#         stations_m = smart_stations(obj, ctx=ctx)  # instead of smart_stations(obj, obj)
+
+#         geo = compute_object_geometry(
+#             obj, ctx=ctx, stations_m=stations_m,
+#             slices=getattr(obj, "slices", None),
+#             twist_deg=twist_deg, negate_x=True
+#         )
 
 
-    # Fit scene
-    if np.isfinite(_bbox_min).all() and np.isfinite(_bbox_max).all():
-        cx, cy, cz = (_bbox_min + _bbox_max)/2.0
-        rx, ry, rz = (_bbox_max - _bbox_min)
-        r = float(max(rx, ry, rz)/2.0 or 1.0)
-        ranges = dict(x=[cx-r, cx+r], y=[cy-r, cy+r], z=[cz-r, cz+r])
-    else:
-        ranges = dict(x=[-1,1], y=[-1,1], z=[-1,1])
+#         ids         = geo["ids"]
+#         stations_mm = geo["stations_mm"]
+#         P_mm        = geo["points_mm"]
+#         X_mm        = geo["local_Y_mm"]
+#         Y_mm        = geo["local_Z_mm"]
+#         loops_idx   = geo.get("loops_idx") or loops_idx  # prefer precomputed if present
 
-    fig.update_layout(
-        title='SPOT VISO — Object-owned geometry',
-        scene=dict(
-            xaxis_title='X (m)', yaxis_title='Y (m)', zaxis_title='Z (m)',
-            xaxis=dict(range=ranges["x"]),
-            yaxis=dict(range=ranges["y"]),
-            zaxis=dict(range=ranges["z"]),
-            aspectmode='manual', aspectratio=dict(x=1, y=1, z=1),
-            camera=dict(eye=dict(x=1.6, y=1.6, z=0.8)),
-        ),
-        template='plotly_white',
-        margin=dict(l=0, r=0, t=50, b=0),
-        hovermode='closest',
-    )
+#         # load section JSON only if needed
+#         if section_json is None and json_file and os.path.isfile(json_file):
+#             with open(json_file, "r", encoding="utf-8") as f:
+#                 section_json = json.load(f)
 
-    Utility.save_as_website(fig, os.path.join(MASTER_GIT, 'combined_objects'))
+#         traces, xs, ys, zs = get_plot_traces_matrix(
+#             axis, section_json, stations_mm, ids, P_mm,
+#             X_mm=X_mm, Y_mm=Y_mm, cls_obj=obj, obj_name=name,
+#             colors=colors, loops_idx=loops_idx,
+#             station_stride_for_loops=1, longitudinal_stride=1, compact_meta=True,
+#         )
+#         fig.add_traces(traces)
+#         _update_bbox_from_points(P_mm)
+#         _update_bbox_from_axis(axis)
+
+
+#     # Fit scene
+#     if np.isfinite(_bbox_min).all() and np.isfinite(_bbox_max).all():
+#         cx, cy, cz = (_bbox_min + _bbox_max)/2.0
+#         rx, ry, rz = (_bbox_max - _bbox_min)
+#         r = float(max(rx, ry, rz)/2.0 or 1.0)
+#         ranges = dict(x=[cx-r, cx+r], y=[cy-r, cy+r], z=[cz-r, cz+r])
+#     else:
+#         ranges = dict(x=[-1,1], y=[-1,1], z=[-1,1])
+
+#     fig.update_layout(
+#         title='SPOT VISO — Object-owned geometry',
+#         scene=dict(
+#             xaxis_title='X (m)', yaxis_title='Y (m)', zaxis_title='Z (m)',
+#             xaxis=dict(range=ranges["x"]),
+#             yaxis=dict(range=ranges["y"]),
+#             zaxis=dict(range=ranges["z"]),
+#             aspectmode='manual', aspectratio=dict(x=1, y=1, z=1),
+#             camera=dict(eye=dict(x=1.6, y=1.6, z=0.8)),
+#         ),
+#         template='plotly_white',
+#         margin=dict(l=0, r=0, t=50, b=0),
+#         hovermode='closest',
+#     )
+
+#     Utility.save_as_website(fig, os.path.join(MASTER_GIT, 'combined_objects'))
 
 
 
