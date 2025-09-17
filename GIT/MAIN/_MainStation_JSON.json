@@ -81,7 +81,7 @@
     "StationValue": 0,
     "StationType": "A",
     "StationRotationX": "",
-    "StationRotationZ": "",
+    "StationRotationZ": "45",
     "SofiCode": "let#n #n+1;STO#MaSType(#n) 'Start';STO#MaSName(#n) 'DeckStart';STO#MaSInAc(#n) ' ';STO#MaSAxis(#n) 'RA';STO#MASIDP(#N) 'STR';STO#MaSStat(#n) 0 ;STO#MaSGaxType(#n) 'A';STO#MaSPAlfz(#n) 0"
   },
   {

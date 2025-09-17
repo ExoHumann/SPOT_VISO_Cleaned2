@@ -117,6 +117,10 @@ class CrossSection:
     name: str
     data: Dict
 
+    # 🔹 cache from the most recent evaluate()
+    last_ids: Optional[List[str]] = None
+    last_loops_idx: Optional[List[np.ndarray]] = None
+    
     @classmethod
     def from_file(cls, path: str, name: Optional[str]=None) -> "CrossSection":
         with open(path, "r", encoding="utf-8") as f:
@@ -188,11 +192,16 @@ class CrossSection:
                 if kx is not None: X[:, j] += X[:, kx]
                 if ky is not None: Y[:, j] += Y[:, ky]
 
-        if negate_x: X = -X
+        if negate_x: 
+            X = -X
         loops = _loops_idx(self.data, id_to_idx)
+
+        # 🔹 remember for callers (plotter / LinearObject)
+        self.last_ids = order
+        self.last_loops_idx = loops
+
         return order, X, Y, loops
-
-
+        
 # # ----------------------------------------------------------------------------- #
 # # Minimal test (runs if you execute this file directly)
 # # ----------------------------------------------------------------------------- #

@@ -26,7 +26,7 @@ def main(axis_json, cross_json, deck_json, mainstation_json, section_json, out_h
 
     # collect all CS candidates that may appear (deck's + those in mainstations)
     cs_names = []
-    cs_names.extend(deck_row.get("CrossSection@Ncs") or [])
+    cs_names.extend(deck_row.get("CrossSection@Name") or [])
     cs_names.extend([ms.cs_name for ms in ms_list if ms.cs_name])
     sections_by_name = resolve_sections_for_object(cross_rows, cs_names, fallback_section_path=section_path)
 
