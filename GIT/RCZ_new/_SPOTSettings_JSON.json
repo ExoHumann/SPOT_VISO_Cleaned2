@@ -1,0 +1,61 @@
+[
+  {
+    "No": "1",
+    "Class": "SPOTSettings",
+    "Type": "B01",
+    "Description": null,
+    "Name": "VISO_GlobalVariables",
+    "InActive": null,
+    "AssetClass": "GlobalVariables",
+    "SettingValue": [
+      "{\r\r\n'GlobalVariables': {'Type': ['asd,dsa,222',['asd','dsa','222']], 'Unit': ['named_range=Class_Unit','named_range']},\r\r\n'Axis': {'Type': ['=$E$97:$H$97',['Direct','','','']]},\r\r\n'Materials': {'Type': ['=$E$97:$I$97',['Direct','','','','']]},\r\r\n'CrossSection': {'Type': ['=$E$97:$P$97',['Direct','','','','','','','','','','','']]},\r\r\n'CrossSection_Points': {'Type': ['=$E$97:$M$97',['Direct','','','','','','','','']]},\r\r\n'CrossSection_Variables': {},\r\r\n'MainStation': {'Type': ['=$E$97:$Q$97',['Direct','','','','','','','','','','','','']], 'Axis@Name': ['aa,22,sddd',['aa','22','sddd']], 'Ref-PlacementId': ['=$K$91#','']},\r\r\n'DeckObject': {'Type': ['=$E$97:$L$97',['Direct','','','','','','','']], 'Ref-PlacementId': ['=$O$86#','']},\r\r\n'DeckObject_AxisVariables': {'Ref-PlacementId': ['=$K$91#','']},\r\r\n'SecondaryObject': {'Type': ['=$E$97:$I$97',['Direct','','','','']], 'Beg_Ref-PlacementId': ['=$L$90#',''], 'End-PlacementDescription': ['=$S$83#',''], 'End_Ref-PlacementId': ['=$T$82#','']},\r\r\n'PierObject': {'Type': ['=$E$97:$L$97',['Direct','','','','','','','']], 'Ref-PlacementId': ['=$M$79#','']},\r\r\n'PierObject_AxisVariables': {'Ref-PlacementId': ['=$K$91#','']},\r\r\n'FoundationObject': {'Type': ['=$E$97:$AC$97',['Direct','','','','','','','','','','','','','','','','','','','','','','','','']], 'Ref-PlacementId': ['=$L$90#','']},\r\r\n'FoundationObject_AxisVariables': {'Ref-PlacementId': ['=$K$91#','']},\r\r\n'BearingArticulation': {'Type': ['=$E$97:$U$97',['Direct','','','','','','','','','','','','','','','','']], 'Name': ['=$G$95#','=HSTACK(|_|B00|_|,|_|B01|_|,|_|B02|_|,|_|B50|_|,|_|B51|_|,|_|B52|_|)'], 'Ref-PlacementId': ['=$J$93#',''], 'PierObject@Name': ['=$R$89#',''], 'Top-CrossSection_Points@Name': ['=$M$90#',''], 'Top-Yoffset': ['=$M$90#',''], 'Top-Xoffset': ['=$M$90#','']},\r\r\n'SPOTSettings': {'Type': ['=$E$97:$I$97',['Direct','','','','']], 'Name': ['=$G$95#','=HSTACK(|_|B00|_|,|_|B01|_|,|_|B02|_|,|_|B50|_|,|_|B51|_|,|_|B52|_|)']},\r\r\n'CDDMapping': {'Type': ['=$E$97:$I$97',['Direct','','','','']]},\r\r\n'VISOMapping': {'Type': ['=$E$97:$I$97',['Direct','','','','']]}\r\r\n}",
+      "Unit"
+    ]
+  },
+  {
+    "No": null,
+    "Class": "ClassInfo",
+    "Type": "PackingSize",
+    "Description": "When creating JSON.json files you can choose whether each column vaues maps to a single value or a list of values",
+    "Name": "SPOTSettings",
+    "InActive": null,
+    "AssetClass": "[one]",
+    "SettingValue": [
+      "[many]"
+    ]
+  },
+  {
+    "No": null,
+    "Class": "ClassInfo",
+    "Type": "PackingType",
+    "Description": "When creating JSON.json files you can choose the type for each column values",
+    "Name": "SPOTSettings",
+    "InActive": null,
+    "AssetClass": "[Str]",
+    "SettingValue": [
+      "[Str]"
+    ]
+  },
+  {
+    "No": null,
+    "Class": "ClassInfo",
+    "Type": "Workflow",
+    "Description": "When creating JSON.json files you can mark some specific columns which are only relevant for given workflow",
+    "Name": "SPOTSettings",
+    "InActive": null,
+    "AssetClass": null,
+    "SettingValue": [
+    ]
+  },
+  {
+    "No": null,
+    "Class": "ClassInfo",
+    "Type": "Unit",
+    "Description": null,
+    "Name": "SPOTSettings",
+    "InActive": null,
+    "AssetClass": null,
+    "SettingValue": [
+    ]
+  }
+]

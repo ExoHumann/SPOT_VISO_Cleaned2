@@ -18,9 +18,9 @@ __all__ = [
     # Core dataclasses / objects
     "Axis", "AxisVariable", "CrossSection",
     "DeckObject", "PierObject", "FoundationObject",
-    "SecondaryObject", "MainStation", "VisoContext",
+    "SecondaryObject", "MainStation",
     # Shared base + helpers
-    "BaseObject", "load_from_json",
+    "BaseObject", "LinearObject", "load_from_json",
     # Visualisation adapter (not plotting)
     "build_viso_object", "create_input_for_visualisation",
     # Config / mapping
@@ -38,10 +38,10 @@ _EXPORT_MAP = {
     "FoundationObject": "models.foundation_object",
     "SecondaryObject": "models.secondary_object",
     "MainStation": "models.main_station",
-    "VisoContext": "models.viso_context",
     "Utils": "utils",
     # Base + helpers
     "BaseObject": "models.base",
+    "LinearObject": "models.linear_object",
     "load_from_json": "models.base",
 
     # Visualisation adapter (kept in models, but separate from BaseObject)
@@ -74,9 +74,9 @@ if TYPE_CHECKING:
     from .foundation_object import FoundationObject
     from .secondary_object import SecondaryObject
     from .main_station import MainStation
-    from .viso_context import VisoContext
 
     from .base import BaseObject
+    from .linear_object import LinearObject
     from .vis_adapter import build_viso_object, create_input_for_visualisation
 
     from .mapping import mapping

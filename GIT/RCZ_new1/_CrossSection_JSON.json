@@ -1,0 +1,2715 @@
+[
+  {
+    "No": "1",
+    "Class": "CrossSection",
+    "Type": "Deck",
+    "Description": "Main",
+    "Name": "MASTER_Deck",
+    "InActive": null,
+    "NCS": 111,
+    "Material1": 101,
+    "Material2": null,
+    "Material_Reinf": 200,
+    "JSON_name": [
+      "MASTER_SECTION\\SectionData.json"
+    ],
+    "SofiCode": [
+    ],
+    "Points": [
+      {
+        "PointName": "O",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "UM",
+        "CoorY": "0",
+        "CoorZ": "H_QS",
+        "CoorYVal": "0",
+        "CoorZVal": 2750.00023841857
+      },
+      {
+        "PointName": "UL",
+        "CoorY": "-37+B_TR/2-(1/TAN((W_ST)*(Pi/180))*(H_QS-T_FBA/COS((Q_NG/100)*(Pi/180))-B_TR/2*Q_NG/100))",
+        "CoorZ": "H_QS",
+        "CoorYVal": "Error 2015",
+        "CoorZVal": 2750.00023841857
+      },
+      {
+        "PointName": "UR",
+        "CoorY": "-37-B_TR/2+(1/TAN((W_ST)*(Pi/180))*(H_QS-T_FBA/COS((Q_NG/100)*(Pi/180))+B_TR/2*Q_NG/100))",
+        "CoorZ": "H_QS",
+        "CoorYVal": "Error 2015",
+        "CoorZVal": 2750.00023841857
+      },
+      {
+        "PointName": "AKL",
+        "CoorY": "B_TR/2-37",
+        "CoorZ": "+T_FBA/COS((Q_NG/100)*(Pi/180))+B_TR/2*Q_NG/100",
+        "CoorYVal": 4250.50038146972,
+        "CoorZVal": "Error 2015"
+      },
+      {
+        "PointName": "AKR",
+        "CoorY": "-B_TR/2-37",
+        "CoorZ": "+T_FBA/COS((Q_NG/100)*(Pi/180))-B_TR/2*Q_NG/100",
+        "CoorYVal": "-4324.50038146972",
+        "CoorZVal": "Error 2015"
+      },
+      {
+        "PointName": "OL",
+        "CoorY": "(B_FB/2)+EX",
+        "CoorZ": "((B_FB/2+EX-1900)*Q_NG/100)-1900*0.025",
+        "CoorYVal": 7950.00028610225,
+        "CoorZVal": 134.000008583068
+      },
+      {
+        "PointName": "OR",
+        "CoorY": "(-B_FB/2)+EX-75",
+        "CoorZ": "(-B_FB/2+EX)*Q_NG/100",
+        "CoorYVal": "-8025.00028610225",
+        "CoorZVal": "-238.500008583068"
+      },
+      {
+        "PointName": "1L",
+        "CoorY": "-299.999952316284",
+        "CoorZ": 100.000023841857,
+        "CoorYVal": "-299.999952316284",
+        "CoorZVal": 100.000023841857
+      },
+      {
+        "PointName": "2L",
+        "CoorY": "-400.000095367431",
+        "CoorZ": 400.000035762786,
+        "CoorYVal": "-400.000095367431",
+        "CoorZVal": 400.000035762786
+      },
+      {
+        "PointName": "3L",
+        "CoorY": "-500",
+        "CoorZ": 699.999988079071,
+        "CoorYVal": "-500",
+        "CoorZVal": 699.999988079071
+      },
+      {
+        "PointName": "4L",
+        "CoorY": "-600.000143051147",
+        "CoorZ": "1100.0000834465",
+        "CoorYVal": "-600.000143051147",
+        "CoorZVal": "1100.0000834465"
+      },
+      {
+        "PointName": "5L",
+        "CoorY": "-700.000047683715",
+        "CoorZ": 1400.00003576278,
+        "CoorYVal": "-700.000047683715",
+        "CoorZVal": 1400.00003576278
+      }
+    ],
+    "Variables": [
+      {
+        "VariableName": "TEST",
+        "VariableValue": 2750.00023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "H_QS:Axis Variable"
+      },
+      {
+        "VariableName": "H_QS",
+        "VariableValue": 2750.00023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "H_QS:Axis Variable"
+      },
+      {
+        "VariableName": "B_TR",
+        "VariableValue": 8575.00076293945,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "B_TR:Axis Variable"
+      },
+      {
+        "VariableName": "W_ST",
+        "VariableValue": "75",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "W_ST:Axis Variable"
+      },
+      {
+        "VariableName": "T_FBA",
+        "VariableValue": 600.000023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_FBA:Axis Variable"
+      },
+      {
+        "VariableName": "Q_NG",
+        "VariableValue": "3",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "Q_NG:Axis Variable"
+      },
+      {
+        "VariableName": "B_FB",
+        "VariableValue": 15900.0005722045,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "B_FB:Axis Variable"
+      },
+      {
+        "VariableName": "EX",
+        "VariableValue": "0",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "EX:Axis Variable"
+      },
+      {
+        "VariableName": "T_ST",
+        "VariableValue": "500",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_ST:Axis Variable"
+      },
+      {
+        "VariableName": "T_FBI",
+        "VariableValue": 600.000023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_FBI:Axis Variable"
+      },
+      {
+        "VariableName": "T_BA",
+        "VariableValue": 600.000023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_BA:Axis Variable"
+      },
+      {
+        "VariableName": "B_BV",
+        "VariableValue": "2000",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "B_BV:Axis Variable"
+      },
+      {
+        "VariableName": "T_BM",
+        "VariableValue": 350.000023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_BM:Axis Variable"
+      },
+      {
+        "VariableName": "B_KK",
+        "VariableValue": "500",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "B_KK:Axis Variable"
+      },
+      {
+        "VariableName": "T_KP",
+        "VariableValue": "250",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_KP:Axis Variable"
+      },
+      {
+        "VariableName": "B_FBV",
+        "VariableValue": 3000.00023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "B_FBV:Axis Variable"
+      },
+      {
+        "VariableName": "T_FBM",
+        "VariableValue": 350.000023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_FBM:Axis Variable"
+      },
+      {
+        "VariableName": "BEFF_BP",
+        "VariableValue": 100.000001490116,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BEFF_BP:Axis Variable"
+      },
+      {
+        "VariableName": "BEFF_KR",
+        "VariableValue": "2500",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BEFF_KR:Axis Variable"
+      },
+      {
+        "VariableName": "BEFF_FB",
+        "VariableValue": 100.000001490116,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BEFF_FB:Axis Variable"
+      }
+    ]
+  },
+  {
+    "No": "2",
+    "Class": "CrossSection",
+    "Type": "Deck",
+    "Description": "CrosBeam",
+    "Name": "MASTER_Deck_crsb",
+    "InActive": null,
+    "NCS": 121,
+    "Material1": 101,
+    "Material2": null,
+    "Material_Reinf": 200,
+    "JSON_name": [
+      "MASTER_SECTION\\SectionData_crsb.json"
+    ],
+    "SofiCode": [
+    ],
+    "Points": [
+      {
+        "PointName": "O",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "UM",
+        "CoorY": "0",
+        "CoorZ": "H_QS",
+        "CoorYVal": "0",
+        "CoorZVal": 2750.00023841857
+      },
+      {
+        "PointName": "UL",
+        "CoorY": "-37+B_TR/2-(1/TAN((W_ST)*(Pi/180))*(H_QS-T_FBA/COS((Q_NG/100)*(Pi/180))-B_TR/2*Q_NG/100))",
+        "CoorZ": "H_QS",
+        "CoorYVal": "Error 2015",
+        "CoorZVal": 2750.00023841857
+      },
+      {
+        "PointName": "UR",
+        "CoorY": "-37-B_TR/2+(1/TAN((W_ST)*(Pi/180))*(H_QS-T_FBA/COS((Q_NG/100)*(Pi/180))+B_TR/2*Q_NG/100))",
+        "CoorZ": "H_QS",
+        "CoorYVal": "Error 2015",
+        "CoorZVal": 2750.00023841857
+      },
+      {
+        "PointName": "AKL",
+        "CoorY": "B_TR/2-37",
+        "CoorZ": "+T_FBA/COS((Q_NG/100)*(Pi/180))+B_TR/2*Q_NG/100",
+        "CoorYVal": 4250.50038146972,
+        "CoorZVal": "Error 2015"
+      },
+      {
+        "PointName": "AKR",
+        "CoorY": "-B_TR/2-37",
+        "CoorZ": "+T_FBA/COS((Q_NG/100)*(Pi/180))-B_TR/2*Q_NG/100",
+        "CoorYVal": "-4324.50038146972",
+        "CoorZVal": "Error 2015"
+      },
+      {
+        "PointName": "OL",
+        "CoorY": "(B_FB/2)+EX",
+        "CoorZ": "((B_FB/2+EX-1900)*Q_NG/100)-1900*0.025",
+        "CoorYVal": 7950.00028610225,
+        "CoorZVal": 134.000008583068
+      },
+      {
+        "PointName": "OR",
+        "CoorY": "(-B_FB/2)+EX-75",
+        "CoorZ": "(-B_FB/2+EX)*Q_NG/100",
+        "CoorYVal": "-8025.00028610225",
+        "CoorZVal": "-238.500008583068"
+      },
+      {
+        "PointName": "1L",
+        "CoorY": "-299.999952316284",
+        "CoorZ": 100.000023841857,
+        "CoorYVal": "-299.999952316284",
+        "CoorZVal": 100.000023841857
+      },
+      {
+        "PointName": "2L",
+        "CoorY": "-400.000095367431",
+        "CoorZ": 400.000035762786,
+        "CoorYVal": "-400.000095367431",
+        "CoorZVal": 400.000035762786
+      },
+      {
+        "PointName": "3L",
+        "CoorY": "-500",
+        "CoorZ": 699.999988079071,
+        "CoorYVal": "-500",
+        "CoorZVal": 699.999988079071
+      },
+      {
+        "PointName": "4L",
+        "CoorY": "-600.000143051147",
+        "CoorZ": "1100.0000834465",
+        "CoorYVal": "-600.000143051147",
+        "CoorZVal": "1100.0000834465"
+      },
+      {
+        "PointName": "5L",
+        "CoorY": "-700.000047683715",
+        "CoorZ": 1400.00003576278,
+        "CoorYVal": "-700.000047683715",
+        "CoorZVal": 1400.00003576278
+      }
+    ],
+    "Variables": [
+      {
+        "VariableName": "H_QS",
+        "VariableValue": 2750.00023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "H_QS:Axis Variable"
+      },
+      {
+        "VariableName": "B_TR",
+        "VariableValue": 8575.00076293945,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "B_TR:Axis Variable"
+      },
+      {
+        "VariableName": "W_ST",
+        "VariableValue": "75",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "W_ST:Axis Variable"
+      },
+      {
+        "VariableName": "T_FBA",
+        "VariableValue": 600.000023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_FBA:Axis Variable"
+      },
+      {
+        "VariableName": "Q_NG",
+        "VariableValue": "3",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "Q_NG:Axis Variable"
+      },
+      {
+        "VariableName": "B_FB",
+        "VariableValue": 15900.0005722045,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "B_FB:Axis Variable"
+      },
+      {
+        "VariableName": "EX",
+        "VariableValue": "0",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "EX:Axis Variable"
+      },
+      {
+        "VariableName": "T_ST",
+        "VariableValue": "500",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_ST:Axis Variable"
+      },
+      {
+        "VariableName": "T_FBI",
+        "VariableValue": 600.000023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_FBI:Axis Variable"
+      },
+      {
+        "VariableName": "T_BA",
+        "VariableValue": 600.000023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_BA:Axis Variable"
+      },
+      {
+        "VariableName": "B_BV",
+        "VariableValue": "2000",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "B_BV:Axis Variable"
+      },
+      {
+        "VariableName": "T_BM",
+        "VariableValue": 350.000023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_BM:Axis Variable"
+      },
+      {
+        "VariableName": "B_KK",
+        "VariableValue": "500",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "B_KK:Axis Variable"
+      },
+      {
+        "VariableName": "T_KP",
+        "VariableValue": "250",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_KP:Axis Variable"
+      },
+      {
+        "VariableName": "B_FBV",
+        "VariableValue": 3000.00023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "B_FBV:Axis Variable"
+      },
+      {
+        "VariableName": "T_FBM",
+        "VariableValue": 350.000023841857,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "T_FBM:Axis Variable"
+      },
+      {
+        "VariableName": "BEFF_BP",
+        "VariableValue": 100.000001490116,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BEFF_BP:Axis Variable"
+      },
+      {
+        "VariableName": "BEFF_KR",
+        "VariableValue": "2500",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BEFF_KR:Axis Variable"
+      },
+      {
+        "VariableName": "BEFF_FB",
+        "VariableValue": 100.000001490116,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BEFF_FB:Axis Variable"
+      }
+    ]
+  },
+  {
+    "No": "5",
+    "Class": "CrossSection",
+    "Type": "CrossGirder",
+    "Description": "CrossGirder",
+    "Name": "CrossGirder1",
+    "InActive": null,
+    "NCS": 501,
+    "Material1": 120,
+    "Material2": null,
+    "Material_Reinf": null,
+    "JSON_name": [
+      "MASTER_SECTION\\Kulosaari_MasterCrossSection_more_ref.json"
+    ],
+    "SofiCode": [
+    ],
+    "Points": [
+      {
+        "PointName": "Y0Z0",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "ORIG",
+        "CoorY": "BORIG",
+        "CoorZ": "HORIG",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "OO",
+        "CoorY": "0",
+        "CoorZ": "TSL",
+        "CoorYVal": "0",
+        "CoorZVal": "110"
+      },
+      {
+        "PointName": "ETL",
+        "CoorY": "-BDL",
+        "CoorZ": "BDL*IDL",
+        "CoorYVal": "-10300",
+        "CoorZVal": "-308.999993093311"
+      },
+      {
+        "PointName": "ETR",
+        "CoorY": "BDR",
+        "CoorZ": "BDR*IDR",
+        "CoorYVal": "8200",
+        "CoorZVal": "-360.799998044967"
+      },
+      {
+        "PointName": "RG1",
+        "CoorY": "(BGE1)",
+        "CoorZ": "(HGE1NORM)",
+        "CoorYVal": "-8000",
+        "CoorZVal": "Error 2015"
+      },
+      {
+        "PointName": "G1T",
+        "CoorY": "(BGE1)",
+        "CoorZ": "(HGE1)",
+        "CoorYVal": "-8000",
+        "CoorZVal": "170"
+      },
+      {
+        "PointName": "G1TC",
+        "CoorY": "0",
+        "CoorZ": "(TTF1/2)",
+        "CoorYVal": "0",
+        "CoorZVal": "20"
+      },
+      {
+        "PointName": "G1TL",
+        "CoorY": "-(WTF1/2)",
+        "CoorZ": "0",
+        "CoorYVal": "-300",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "G1TR",
+        "CoorY": "(WTF1/2)",
+        "CoorZ": "0",
+        "CoorYVal": "300",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "G1B",
+        "CoorY": "0",
+        "CoorZ": "HG1",
+        "CoorYVal": "0",
+        "CoorZVal": "1900"
+      },
+      {
+        "PointName": "G1BC",
+        "CoorY": "0",
+        "CoorZ": "-(TBF1/2)",
+        "CoorYVal": "0",
+        "CoorZVal": "-20"
+      },
+      {
+        "PointName": "G1BL",
+        "CoorY": "-(WBF1/2)",
+        "CoorZ": "0",
+        "CoorYVal": "-600",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "G1BR",
+        "CoorY": "(WBF1/2)",
+        "CoorZ": "0",
+        "CoorYVal": "600",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "G1WT",
+        "CoorY": "0",
+        "CoorZ": "(TTF1)",
+        "CoorYVal": "0",
+        "CoorZVal": "40"
+      },
+      {
+        "PointName": "G1WB",
+        "CoorY": "0",
+        "CoorZ": "-(TBF1)",
+        "CoorYVal": "0",
+        "CoorZVal": "-40"
+      },
+      {
+        "PointName": "G1WL",
+        "CoorY": "-(TW1/2)",
+        "CoorZ": "HG1/2",
+        "CoorYVal": "-10",
+        "CoorZVal": "950"
+      },
+      {
+        "PointName": "G1WR",
+        "CoorY": "(TW1/2)",
+        "CoorZ": "HG1/2",
+        "CoorYVal": "10",
+        "CoorZVal": "950"
+      },
+      {
+        "PointName": "RG2",
+        "CoorY": "(BGE2)",
+        "CoorZ": "(HGE2NORM)",
+        "CoorYVal": "-2000",
+        "CoorZVal": "Error 2015"
+      },
+      {
+        "PointName": "G2T",
+        "CoorY": "(BGE2)",
+        "CoorZ": "(HGE2)",
+        "CoorYVal": "-2000",
+        "CoorZVal": "320"
+      },
+      {
+        "PointName": "G2TC",
+        "CoorY": "0",
+        "CoorZ": "(TTF2/2)",
+        "CoorYVal": "0",
+        "CoorZVal": "20"
+      },
+      {
+        "PointName": "G2TL",
+        "CoorY": "-(WTF2/2)",
+        "CoorZ": "0",
+        "CoorYVal": "-300",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "G2TR",
+        "CoorY": "(WTF2/2)",
+        "CoorZ": "0",
+        "CoorYVal": "300",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "G2B",
+        "CoorY": "0",
+        "CoorZ": "HG2",
+        "CoorYVal": "0",
+        "CoorZVal": "1750"
+      },
+      {
+        "PointName": "G2BC",
+        "CoorY": "0",
+        "CoorZ": "-(TBF2/2)",
+        "CoorYVal": "0",
+        "CoorZVal": "-20"
+      },
+      {
+        "PointName": "G2BL",
+        "CoorY": "-(WBF2/2)",
+        "CoorZ": "0",
+        "CoorYVal": "-600",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "G2BR",
+        "CoorY": "(WBF2/2)",
+        "CoorZ": "0",
+        "CoorYVal": "600",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "G2WT",
+        "CoorY": "0",
+        "CoorZ": "(TTF2)",
+        "CoorYVal": "0",
+        "CoorZVal": "40"
+      },
+      {
+        "PointName": "G2WB",
+        "CoorY": "0",
+        "CoorZ": "-(TBF2)",
+        "CoorYVal": "0",
+        "CoorZVal": "-40"
+      },
+      {
+        "PointName": "G2WL",
+        "CoorY": "-(TW2/2)",
+        "CoorZ": "HG2/2",
+        "CoorYVal": "-10",
+        "CoorZVal": "875"
+      },
+      {
+        "PointName": "G2WR",
+        "CoorY": "(TW2/2)",
+        "CoorZ": "HG2/2",
+        "CoorYVal": "10",
+        "CoorZVal": "875"
+      },
+      {
+        "PointName": "RG3",
+        "CoorY": "(BGE3)",
+        "CoorZ": "(HGE3NORM)",
+        "CoorYVal": "4000",
+        "CoorZVal": "Error 2015"
+      },
+      {
+        "PointName": "G3T",
+        "CoorY": "(BGE3)",
+        "CoorZ": "(HGE3)",
+        "CoorYVal": "4000",
+        "CoorZVal": "170"
+      },
+      {
+        "PointName": "G3TC",
+        "CoorY": "0",
+        "CoorZ": "(TTF3/2)",
+        "CoorYVal": "0",
+        "CoorZVal": "20"
+      },
+      {
+        "PointName": "G3TL",
+        "CoorY": "-(WTF3/2)",
+        "CoorZ": "0",
+        "CoorYVal": "-300",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "G3TR",
+        "CoorY": "(WTF3/2)",
+        "CoorZ": "0",
+        "CoorYVal": "300",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "G3B",
+        "CoorY": "0",
+        "CoorZ": "HG3",
+        "CoorYVal": "0",
+        "CoorZVal": "1900"
+      },
+      {
+        "PointName": "G3BC",
+        "CoorY": "0",
+        "CoorZ": "-(TBF3/2)",
+        "CoorYVal": "0",
+        "CoorZVal": "-20"
+      },
+      {
+        "PointName": "G3BL",
+        "CoorY": "-(WBF3/2)",
+        "CoorZ": "0",
+        "CoorYVal": "-600",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "G3BR",
+        "CoorY": "(WBF3/2)",
+        "CoorZ": "0",
+        "CoorYVal": "600",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "G3WT",
+        "CoorY": "0",
+        "CoorZ": "(TTF3)",
+        "CoorYVal": "0",
+        "CoorZVal": "40"
+      },
+      {
+        "PointName": "G3WB",
+        "CoorY": "0",
+        "CoorZ": "-(TBF3)",
+        "CoorYVal": "0",
+        "CoorZVal": "-40"
+      },
+      {
+        "PointName": "G3WL",
+        "CoorY": "-(TW3/2)",
+        "CoorZ": "HG3/2",
+        "CoorYVal": "-10",
+        "CoorZVal": "950"
+      },
+      {
+        "PointName": "G3WR",
+        "CoorY": "(TW3/2)",
+        "CoorZ": "HG3/2",
+        "CoorYVal": "10",
+        "CoorZVal": "950"
+      },
+      {
+        "PointName": "EITL",
+        "CoorY": "0",
+        "CoorZ": "-(TSL+HESL)",
+        "CoorYVal": "0",
+        "CoorZVal": "-360"
+      },
+      {
+        "PointName": "EOTL",
+        "CoorY": "-(BEBL)",
+        "CoorZ": "BEBL*ITEBL",
+        "CoorYVal": "-500",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "EOBL",
+        "CoorY": "0",
+        "CoorZ": "HEBL",
+        "CoorYVal": "0",
+        "CoorZVal": "500"
+      },
+      {
+        "PointName": "EIBL",
+        "CoorY": "(BEBL)",
+        "CoorZ": "0",
+        "CoorYVal": "500",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "ERAL",
+        "CoorY": "-(BRAL)",
+        "CoorZ": "BRAL*ITEBL",
+        "CoorYVal": "-200",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "EITR",
+        "CoorY": "0",
+        "CoorZ": "-(TSL+HESR)",
+        "CoorYVal": "0",
+        "CoorZVal": "-360"
+      },
+      {
+        "PointName": "EOTR",
+        "CoorY": "(BEBR)",
+        "CoorZ": "BEBR*ITEBR",
+        "CoorYVal": "500",
+        "CoorZVal": "-19.9999995529652"
+      },
+      {
+        "PointName": "EOBR",
+        "CoorY": "0",
+        "CoorZ": "HEBR",
+        "CoorYVal": "0",
+        "CoorZVal": "500"
+      },
+      {
+        "PointName": "EIBR",
+        "CoorY": "-(BEBR)",
+        "CoorZ": "0",
+        "CoorYVal": "-500",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "ERAR",
+        "CoorY": "(BRAR)",
+        "CoorZ": "BRAR*ITEBR",
+        "CoorYVal": "300",
+        "CoorZVal": "-11.9999997317791"
+      },
+      {
+        "PointName": "CT01",
+        "CoorY": "0",
+        "CoorZ": "-HCGB",
+        "CoorYVal": "0",
+        "CoorZVal": "-150"
+      },
+      {
+        "PointName": "CT02",
+        "CoorY": "0",
+        "CoorZ": "-HCGB",
+        "CoorYVal": "0",
+        "CoorZVal": "-150"
+      },
+      {
+        "PointName": "CT03",
+        "CoorY": "0",
+        "CoorZ": "-HCGB",
+        "CoorYVal": "0",
+        "CoorZVal": "-150"
+      },
+      {
+        "PointName": "CC01",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "CC02",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "CC03",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "CD01",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "CD02",
+        "CoorY": "BCGB",
+        "CoorZ": "0",
+        "CoorYVal": "3000",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "CD03",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "CD04",
+        "CoorY": "BCGB",
+        "CoorZ": "0",
+        "CoorYVal": "3000",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "CD05",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "CH01",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "CH02",
+        "CoorY": "BCGB",
+        "CoorZ": "0",
+        "CoorYVal": "3000",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "CH03",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "CH04",
+        "CoorY": "BCGB",
+        "CoorZ": "0",
+        "CoorYVal": "3000",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "CH05",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "B1TP",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "B2TP",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "B3TP",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "B1BP",
+        "CoorY": "0",
+        "CoorZ": "HBEA",
+        "CoorYVal": "0",
+        "CoorZVal": "200"
+      },
+      {
+        "PointName": "B2BP",
+        "CoorY": "0",
+        "CoorZ": "HBEA",
+        "CoorYVal": "0",
+        "CoorZVal": "200"
+      },
+      {
+        "PointName": "B3BP",
+        "CoorY": "0",
+        "CoorZ": "HBEA",
+        "CoorYVal": "0",
+        "CoorZVal": "200"
+      },
+      {
+        "PointName": "B1CP",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "B2CP",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "B3CP",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "B1HP",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "B2HP",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "B3HP",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D01R",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D02R",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D00B",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D01B",
+        "CoorY": "0",
+        "CoorZ": "TOFL",
+        "CoorYVal": "0",
+        "CoorZVal": "350"
+      },
+      {
+        "PointName": "D02B",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D03B",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D04B",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D05B",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D06B",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D07B",
+        "CoorY": "0",
+        "CoorZ": "TOFR",
+        "CoorYVal": "0",
+        "CoorZVal": "250"
+      },
+      {
+        "PointName": "D08B",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D00T",
+        "CoorY": "0",
+        "CoorZ": "-HEBL",
+        "CoorYVal": "0",
+        "CoorZVal": "-500"
+      },
+      {
+        "PointName": "D01T",
+        "CoorY": "0",
+        "CoorZ": "-TOFL",
+        "CoorYVal": "0",
+        "CoorZVal": "-350"
+      },
+      {
+        "PointName": "D02T",
+        "CoorY": "0",
+        "CoorZ": "-TMS",
+        "CoorYVal": "0",
+        "CoorZVal": "-300"
+      },
+      {
+        "PointName": "D03T",
+        "CoorY": "0",
+        "CoorZ": "-TMS",
+        "CoorYVal": "0",
+        "CoorZVal": "-300"
+      },
+      {
+        "PointName": "D04T",
+        "CoorY": "0",
+        "CoorZ": "-TMS",
+        "CoorYVal": "0",
+        "CoorZVal": "-300"
+      },
+      {
+        "PointName": "D05T",
+        "CoorY": "0",
+        "CoorZ": "-TMS",
+        "CoorYVal": "0",
+        "CoorZVal": "-300"
+      },
+      {
+        "PointName": "D06T",
+        "CoorY": "0",
+        "CoorZ": "-TMS",
+        "CoorYVal": "0",
+        "CoorZVal": "-300"
+      },
+      {
+        "PointName": "D07T",
+        "CoorY": "0",
+        "CoorZ": "-TOFR",
+        "CoorYVal": "0",
+        "CoorZVal": "-250"
+      },
+      {
+        "PointName": "D08T",
+        "CoorY": "0",
+        "CoorZ": "-HEBR",
+        "CoorYVal": "0",
+        "CoorZVal": "-500"
+      },
+      {
+        "PointName": "D00F",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D01F",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D02F",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D03F",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D04F",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D05F",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D06F",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D07F",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D08F",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D00H",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D01H",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D02H",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D03H",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D04H",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D05H",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D06H",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D07H",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "D08H",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "T01R",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "T02R",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "T03R",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "T10R",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "T11R",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "T12R",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "T13R",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4100",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4101",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4102",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4103",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4104",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4105",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4106",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4107",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4108",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4109",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4110",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4111",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4112",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4200",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4201",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4202",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4203",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4204",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4205",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4206",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4207",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4208",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4209",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4210",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4211",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4212",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4300",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4301",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4302",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4303",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4304",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4305",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4306",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4307",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4308",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4309",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4310",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4311",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "4312",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "0",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "1",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "100",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "101",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "50",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "51",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "150",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "151",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      }
+    ],
+    "Variables": [
+      {
+        "VariableName": "TSL",
+        "VariableValue": "110",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "TSL:Axis Variable"
+      },
+      {
+        "VariableName": "HORIG",
+        "VariableValue": "0",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HORIG:Axis Variable"
+      },
+      {
+        "VariableName": "BORIG",
+        "VariableValue": "0",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BORIG:Axis Variable"
+      },
+      {
+        "VariableName": "BDL",
+        "VariableValue": "10300",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BDL:Axis Variable"
+      },
+      {
+        "VariableName": "IDL",
+        "VariableValue": "-2.99999993294477E-02",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "IDL:Axis Variable"
+      },
+      {
+        "VariableName": "BDR",
+        "VariableValue": "8200",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BDR:Axis Variable"
+      },
+      {
+        "VariableName": "IDR",
+        "VariableValue": "-4.39999997615814E-02",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "IDR:Axis Variable"
+      },
+      {
+        "VariableName": "TTF1",
+        "VariableValue": "40",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "TTF1:Axis Variable"
+      },
+      {
+        "VariableName": "WTF1",
+        "VariableValue": "600",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "WTF1:Axis Variable"
+      },
+      {
+        "VariableName": "TBF1",
+        "VariableValue": "40",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "TBF1:Axis Variable"
+      },
+      {
+        "VariableName": "WBF1",
+        "VariableValue": "1200",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "WBF1:Axis Variable"
+      },
+      {
+        "VariableName": "TW1",
+        "VariableValue": "20",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "TW1:Axis Variable"
+      },
+      {
+        "VariableName": "HG1",
+        "VariableValue": "1900",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HG1:Axis Variable"
+      },
+      {
+        "VariableName": "HGE1",
+        "VariableValue": "170",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HGE1:Axis Variable"
+      },
+      {
+        "VariableName": "BGE1",
+        "VariableValue": "-8000",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BGE1:Axis Variable"
+      },
+      {
+        "VariableName": "TTF2",
+        "VariableValue": "40",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "TTF2:Axis Variable"
+      },
+      {
+        "VariableName": "WTF2",
+        "VariableValue": "600",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "WTF2:Axis Variable"
+      },
+      {
+        "VariableName": "TBF2",
+        "VariableValue": "40",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "TBF2:Axis Variable"
+      },
+      {
+        "VariableName": "WBF2",
+        "VariableValue": "1200",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "WBF2:Axis Variable"
+      },
+      {
+        "VariableName": "TW2",
+        "VariableValue": "20",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "TW2:Axis Variable"
+      },
+      {
+        "VariableName": "HG2",
+        "VariableValue": "1750",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HG2:Axis Variable"
+      },
+      {
+        "VariableName": "HGE2",
+        "VariableValue": "320",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HGE2:Axis Variable"
+      },
+      {
+        "VariableName": "BGE2",
+        "VariableValue": "-2000",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BGE2:Axis Variable"
+      },
+      {
+        "VariableName": "TTF3",
+        "VariableValue": "40",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "TTF3:Axis Variable"
+      },
+      {
+        "VariableName": "WTF3",
+        "VariableValue": "600",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "WTF3:Axis Variable"
+      },
+      {
+        "VariableName": "TBF3",
+        "VariableValue": "40",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "TBF3:Axis Variable"
+      },
+      {
+        "VariableName": "WBF3",
+        "VariableValue": "1200",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "WBF3:Axis Variable"
+      },
+      {
+        "VariableName": "TW3",
+        "VariableValue": "20",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "TW3:Axis Variable"
+      },
+      {
+        "VariableName": "HG3",
+        "VariableValue": "1900",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HG3:Axis Variable"
+      },
+      {
+        "VariableName": "HGE3",
+        "VariableValue": "170",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HGE3:Axis Variable"
+      },
+      {
+        "VariableName": "BGE3",
+        "VariableValue": "4000",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BGE3:Axis Variable"
+      },
+      {
+        "VariableName": "TMS",
+        "VariableValue": "300",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "TMS:Axis Variable"
+      },
+      {
+        "VariableName": "TOFL",
+        "VariableValue": "350",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "TOFL:Axis Variable"
+      },
+      {
+        "VariableName": "TOFR",
+        "VariableValue": "250",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "TOFR:Axis Variable"
+      },
+      {
+        "VariableName": "HEBL",
+        "VariableValue": "500",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HEBL:Axis Variable"
+      },
+      {
+        "VariableName": "BEBL",
+        "VariableValue": "500",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BEBL:Axis Variable"
+      },
+      {
+        "VariableName": "HESL",
+        "VariableValue": "250",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HESL:Axis Variable"
+      },
+      {
+        "VariableName": "ITEBL",
+        "VariableValue": "0",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "ITEBL:Axis Variable"
+      },
+      {
+        "VariableName": "BRAL",
+        "VariableValue": "200",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BRAL:Axis Variable"
+      },
+      {
+        "VariableName": "HEBR",
+        "VariableValue": "500",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HEBR:Axis Variable"
+      },
+      {
+        "VariableName": "BEBR",
+        "VariableValue": "500",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BEBR:Axis Variable"
+      },
+      {
+        "VariableName": "HESR",
+        "VariableValue": "250",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HESR:Axis Variable"
+      },
+      {
+        "VariableName": "ITEBR",
+        "VariableValue": "-3.99999991059303E-02",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "ITEBR:Axis Variable"
+      },
+      {
+        "VariableName": "BRAR",
+        "VariableValue": "300",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BRAR:Axis Variable"
+      },
+      {
+        "VariableName": "HCGB",
+        "VariableValue": "150",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HCGB:Axis Variable"
+      },
+      {
+        "VariableName": "BCGB",
+        "VariableValue": "3000",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "BCGB:Axis Variable"
+      },
+      {
+        "VariableName": "HBEA",
+        "VariableValue": "200",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HBEA:Axis Variable"
+      },
+      {
+        "VariableName": "HGE1NORM",
+        "VariableValue": "170",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HGE1NORM:Axis Variable"
+      },
+      {
+        "VariableName": "HGE2NORM",
+        "VariableValue": "320",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HGE2NORM:Axis Variable"
+      },
+      {
+        "VariableName": "HGE3NORM",
+        "VariableValue": "170",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HGE3NORM:Axis Variable"
+      }
+    ]
+  },
+  {
+    "No": "6",
+    "Class": "CrossSection",
+    "Type": "MainGirder",
+    "Description": "MainGirder01",
+    "Name": "MainGirder01",
+    "InActive": null,
+    "NCS": 4000,
+    "Material1": 400,
+    "Material2": 100,
+    "Material_Reinf": null,
+    "JSON_name": [
+    ],
+    "SofiCode": [
+    ],
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "No": "7",
+    "Class": "CrossSection",
+    "Type": "MainGirder",
+    "Description": "MainGirder02",
+    "Name": "MainGirder02",
+    "InActive": null,
+    "NCS": 4300,
+    "Material1": 400,
+    "Material2": 100,
+    "Material_Reinf": null,
+    "JSON_name": [
+    ],
+    "SofiCode": [
+    ],
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "No": "8",
+    "Class": "CrossSection",
+    "Type": "MainGirder",
+    "Description": "MainGirder03",
+    "Name": "MainGirder03",
+    "InActive": null,
+    "NCS": 4600,
+    "Material1": 400,
+    "Material2": 100,
+    "Material_Reinf": null,
+    "JSON_name": [
+    ],
+    "SofiCode": [
+    ],
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "No": "6",
+    "Class": "CrossSection",
+    "Type": "MainGirder",
+    "Description": "MainGirder01Cracked",
+    "Name": "MainGirder01Cracked",
+    "InActive": null,
+    "NCS": 5000,
+    "Material1": 100,
+    "Material2": null,
+    "Material_Reinf": null,
+    "JSON_name": [
+    ],
+    "SofiCode": [
+    ],
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "No": "7",
+    "Class": "CrossSection",
+    "Type": "MainGirder",
+    "Description": "MainGirder02Cracked",
+    "Name": "MainGirder02Cracked",
+    "InActive": null,
+    "NCS": 5300,
+    "Material1": 100,
+    "Material2": null,
+    "Material_Reinf": null,
+    "JSON_name": [
+    ],
+    "SofiCode": [
+    ],
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "No": "8",
+    "Class": "CrossSection",
+    "Type": "MainGirder",
+    "Description": "MainGirder03Cracked",
+    "Name": "MainGirder03Cracked",
+    "InActive": null,
+    "NCS": 5600,
+    "Material1": 100,
+    "Material2": null,
+    "Material_Reinf": null,
+    "JSON_name": [
+    ],
+    "SofiCode": [
+    ],
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "No": "9",
+    "Class": "CrossSection",
+    "Type": "Bracing",
+    "Description": "X-bracing bar",
+    "Name": "X-bracing bar",
+    "InActive": null,
+    "NCS": 1000,
+    "Material1": 101,
+    "Material2": null,
+    "Material_Reinf": null,
+    "JSON_name": [
+    ],
+    "SofiCode": [
+    ],
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "No": "10",
+    "Class": "CrossSection",
+    "Type": "Pier",
+    "Description": "PierS1",
+    "Name": "PierS1",
+    "InActive": null,
+    "NCS": 3000,
+    "Material1": 101,
+    "Material2": null,
+    "Material_Reinf": 200,
+    "JSON_name": [
+    ],
+    "SofiCode": [
+    ],
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "No": "11",
+    "Class": "CrossSection",
+    "Type": "Pier",
+    "Description": "PierS2,3,4",
+    "Name": "PierS2,3,4",
+    "InActive": null,
+    "NCS": 3001,
+    "Material1": 101,
+    "Material2": null,
+    "Material_Reinf": 200,
+    "JSON_name": [
+    ],
+    "SofiCode": [
+    ],
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "No": "12",
+    "Class": "CrossSection",
+    "Type": "Foundation",
+    "Description": "MASTER_Foundation",
+    "Name": "MASTER_Foundation",
+    "InActive": null,
+    "NCS": 300,
+    "Material1": 101,
+    "Material2": null,
+    "Material_Reinf": null,
+    "JSON_name": [
+      "MASTER_SECTION\\MASTER_Foundation.json"
+    ],
+    "SofiCode": [
+    ],
+    "Points": [
+      {
+        "PointName": "RA",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "OO",
+        "CoorY": "0",
+        "CoorZ": "-1*CSHEIGHT",
+        "CoorYVal": "0",
+        "CoorZVal": "-800"
+      },
+      {
+        "PointName": "_OO",
+        "CoorY": "0",
+        "CoorZ": "CSHEIGHT",
+        "CoorYVal": "0",
+        "CoorZVal": "800"
+      },
+      {
+        "PointName": "HW0",
+        "CoorY": "(WIDH_1000*-1)",
+        "CoorZ": "(WIDH_1000)*SLOP_1000",
+        "CoorYVal": "-1500",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "HW2",
+        "CoorY": "(HORZ_1001+HORZ_1002)*(-1)*-1",
+        "CoorZ": "(HORZ_1001+HORZ_1002)*(-1)*(SLOP_1000)",
+        "CoorYVal": "1000",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "1002",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "1001",
+        "CoorY": "HORZ_1002*-1",
+        "CoorZ": "HORZ_1002*SLOP_1002+VERT_1002",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "1000",
+        "CoorY": "HORZ_1001*-1",
+        "CoorZ": "HORZ_1001*SLOP_1001+VERT_1001",
+        "CoorYVal": "-1000",
+        "CoorZVal": 100.000001490116
+      },
+      {
+        "PointName": "2002",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "2001",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "2000",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "HW50",
+        "CoorY": "(WIDH_1050*1)",
+        "CoorZ": "(WIDH_1050)*SLOP_1050",
+        "CoorYVal": "1500",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "HW52",
+        "CoorY": "(HORZ_1051+HORZ_1052)*(-1)*1",
+        "CoorZ": "(HORZ_1051+HORZ_1052)*(-1)*(SLOP_1050)",
+        "CoorYVal": "-1000",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "1052",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "1051",
+        "CoorY": "HORZ_1052*1",
+        "CoorZ": "HORZ_1052*SLOP_1052+VERT_1052",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "1050",
+        "CoorY": "HORZ_1051*1",
+        "CoorZ": "HORZ_1051*SLOP_1051+VERT_1051",
+        "CoorYVal": "1000",
+        "CoorZVal": 100.000001490116
+      },
+      {
+        "PointName": "2052",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "2051",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "2050",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "S01",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "S02",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "S03",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      }
+    ],
+    "Variables": [
+      {
+        "VariableName": "CSHEIGHT",
+        "VariableValue": "800",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "CSHEIGHT:Axis Variable"
+      },
+      {
+        "VariableName": "WIDH_1000",
+        "VariableValue": "1500",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "WIDH_1000:Axis Variable"
+      },
+      {
+        "VariableName": "SLOP_1000",
+        "VariableValue": "0",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "SLOP_1000:Axis Variable"
+      },
+      {
+        "VariableName": "HORZ_1001",
+        "VariableValue": "1000",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HORZ_1001:Axis Variable"
+      },
+      {
+        "VariableName": "HORZ_1002",
+        "VariableValue": "0",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HORZ_1002:Axis Variable"
+      },
+      {
+        "VariableName": "SLOP_1002",
+        "VariableValue": "0",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "SLOP_1002:Axis Variable"
+      },
+      {
+        "VariableName": "VERT_1002",
+        "VariableValue": "0",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "VERT_1002:Axis Variable"
+      },
+      {
+        "VariableName": "SLOP_1001",
+        "VariableValue": 0.100000001490116,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "SLOP_1001:Axis Variable"
+      },
+      {
+        "VariableName": "VERT_1001",
+        "VariableValue": "0",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "VERT_1001:Axis Variable"
+      },
+      {
+        "VariableName": "WIDH_1050",
+        "VariableValue": "1500",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "WIDH_1050:Axis Variable"
+      },
+      {
+        "VariableName": "SLOP_1050",
+        "VariableValue": "0",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "SLOP_1050:Axis Variable"
+      },
+      {
+        "VariableName": "HORZ_1051",
+        "VariableValue": "1000",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HORZ_1051:Axis Variable"
+      },
+      {
+        "VariableName": "HORZ_1052",
+        "VariableValue": "0",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "HORZ_1052:Axis Variable"
+      },
+      {
+        "VariableName": "SLOP_1052",
+        "VariableValue": "0",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "SLOP_1052:Axis Variable"
+      },
+      {
+        "VariableName": "VERT_1052",
+        "VariableValue": "0",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "VERT_1052:Axis Variable"
+      },
+      {
+        "VariableName": "SLOP_1051",
+        "VariableValue": 0.100000001490116,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "SLOP_1051:Axis Variable"
+      },
+      {
+        "VariableName": "VERT_1051",
+        "VariableValue": "0",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "VERT_1051:Axis Variable"
+      }
+    ]
+  },
+  {
+    "No": "13",
+    "Class": "CrossSection",
+    "Type": "Pier",
+    "Description": "MASTER_Pier",
+    "Name": "MASTER_Pier",
+    "InActive": null,
+    "NCS": 400,
+    "Material1": 101,
+    "Material2": null,
+    "Material_Reinf": null,
+    "JSON_name": [
+      "MASTER_SECTION\\MASTER_Pier.json"
+    ],
+    "SofiCode": [
+    ],
+    "Points": [
+      {
+        "PointName": "RA",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "OO",
+        "CoorY": "0",
+        "CoorZ": "-1*CSHEIGHT*0.5",
+        "CoorYVal": "0",
+        "CoorZVal": "-325"
+      },
+      {
+        "PointName": "_OO",
+        "CoorY": "0",
+        "CoorZ": "CSHEIGHT",
+        "CoorYVal": "0",
+        "CoorZVal": "650"
+      },
+      {
+        "PointName": "HW0",
+        "CoorY": "(WIDH_1000*-1)",
+        "CoorZ": "(WIDH_1000)*SLOP_1000",
+        "CoorYVal": "-2035",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "HT0",
+        "CoorY": "(CSHEIGHT*0.5*(TAN((INCL_1000)*(Pi/180)))*-1)",
+        "CoorZ": "(-CSHEIGHT*0.5)",
+        "CoorYVal": "Error 2015",
+        "CoorZVal": "-325"
+      },
+      {
+        "PointName": "HB0",
+        "CoorY": "(-CSHEIGHT*0.5*(TAN((INCL_1000)*(Pi/180)))*-1)",
+        "CoorZ": "(CSHEIGHT*0.5)",
+        "CoorYVal": "Error 2015",
+        "CoorZVal": "325"
+      },
+      {
+        "PointName": "1000",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "2000",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "HW50",
+        "CoorY": "(WIDH_1050*1)",
+        "CoorZ": "(WIDH_1050)*SLOP_1050",
+        "CoorYVal": "2035",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "HT50",
+        "CoorY": "(-CSHEIGHT*0.5*(TAN((INCL_1050)*(Pi/180)))*1)",
+        "CoorZ": "(-CSHEIGHT*0.5)",
+        "CoorYVal": "Error 2015",
+        "CoorZVal": "-325"
+      },
+      {
+        "PointName": "HB50",
+        "CoorY": "(CSHEIGHT*0.5*(TAN((INCL_1050)*(Pi/180)))*1)",
+        "CoorZ": "(CSHEIGHT*0.5)",
+        "CoorYVal": "Error 2015",
+        "CoorZVal": "325"
+      },
+      {
+        "PointName": "1050",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "2050",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "S01",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "S02",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      },
+      {
+        "PointName": "S03",
+        "CoorY": "0",
+        "CoorZ": "0",
+        "CoorYVal": "0",
+        "CoorZVal": "0"
+      }
+    ],
+    "Variables": [
+      {
+        "VariableName": "CSHEIGHT",
+        "VariableValue": "650",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "CSHEIGHT:Axis Variable"
+      },
+      {
+        "VariableName": "WIDH_1000",
+        "VariableValue": "2035",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "WIDH_1000:Axis Variable"
+      },
+      {
+        "VariableName": "SLOP_1000",
+        "VariableValue": "0",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "SLOP_1000:Axis Variable"
+      },
+      {
+        "VariableName": "INCL_1000",
+        "VariableValue": 35.5550003051757,
+        "VariableUnit": "[mm]",
+        "VariableDescription": "INCL_1000:Axis Variable"
+      },
+      {
+        "VariableName": "WIDH_1050",
+        "VariableValue": "2035",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "WIDH_1050:Axis Variable"
+      },
+      {
+        "VariableName": "SLOP_1050",
+        "VariableValue": "0",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "SLOP_1050:Axis Variable"
+      },
+      {
+        "VariableName": "INCL_1050",
+        "VariableValue": "0",
+        "VariableUnit": "[mm]",
+        "VariableDescription": "INCL_1050:Axis Variable"
+      }
+    ]
+  },
+  {
+    "No": null,
+    "Class": "ClassInfo",
+    "Type": "PackingSize",
+    "Description": "When creating JSON.json files you can choose whether each column vaues maps to a single value or a list of values",
+    "Name": "CrossSection",
+    "InActive": null,
+    "NCS": null,
+    "Material1": null,
+    "Material2": null,
+    "Material_Reinf": null,
+    "JSON_name": [
+      "[many]"
+    ],
+    "SofiCode": [
+      "[many]"
+    ],
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "No": null,
+    "Class": "ClassInfo",
+    "Type": "PackingType",
+    "Description": "When creating JSON.json files you can choose the type for each column values",
+    "Name": "CrossSection",
+    "InActive": null,
+    "NCS": 0,
+    "Material1": 0,
+    "Material2": 0,
+    "Material_Reinf": 0,
+    "JSON_name": [
+      "[Str]"
+    ],
+    "SofiCode": [
+      "[Str]"
+    ],
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "No": null,
+    "Class": "ClassInfo",
+    "Type": "Workflow",
+    "Description": "When creating JSON.json files you can mark some specific columns which are only relevant for given workflow",
+    "Name": "CrossSection",
+    "InActive": null,
+    "NCS": null,
+    "Material1": null,
+    "Material2": null,
+    "Material_Reinf": null,
+    "JSON_name": [
+    ],
+    "SofiCode": [
+    ],
+    "Points": {
+    },
+    "Variables": {
+    }
+  },
+  {
+    "No": null,
+    "Class": "ClassInfo",
+    "Type": "Unit",
+    "Description": null,
+    "Name": "CrossSection",
+    "InActive": null,
+    "NCS": null,
+    "Material1": null,
+    "Material2": null,
+    "Material_Reinf": null,
+    "JSON_name": [
+    ],
+    "SofiCode": [
+    ],
+    "Points": {
+    },
+    "Variables": {
+    }
+  }
+]

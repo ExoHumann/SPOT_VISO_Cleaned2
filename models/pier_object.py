@@ -1,328 +1,185 @@
 from __future__ import annotations
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Optional, Tuple
+"""Enhanced minimal PierObject with JSON-driven NCS sequencing.
 
-import numpy as np
-
-from .base import BaseObject
-from .cross_section import CrossSection
-from .axis import Axis
-from .axis_variable import AxisVariable
-
+Features retained:
+  * Single vertical extrusion built inside build()
+  * Optional multi NCS switching driven by provided JSON offsets
+  * Anchor via placement axis sampling or explicit world anchor
+  * Meta diagnostics including ncs_steps & sequencing source
+"""
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional
-from .base import BaseObject
+from typing import Dict, Optional, List
+import math, numpy as np
 
-@dataclass(kw_only=True)
-class PierObject(BaseObject):
-    # identity / metadata
-    no: str = ""
-    class_name: str = "PierObject"
-    type: str = ""
-    description: str = ""
-    name: str = ""
-    inactive: str = "0"
+from .linear_object import LinearObject
+from .axis import Axis
+from .cross_section import CrossSection
 
-    # axis
-    object_axis_name: str = ""                 # leave if you also use axis_name elsewhere
-    axis_variables: List[Dict] = field(default_factory=list)
+_DEFAULT_HEIGHT_M = 10.0
 
-    # cross-section references (DEFAULTS ADDED)
-    bot_cross_section_name: str = ""           # <- default added
-    top_cross_section_name: str = ""           # <- default added
+@dataclass
+class PierObject(LinearObject):
+    station_value: float = 0.0
+    height_m: Optional[float] = None
+    plan_rotation_add_deg: float = 0.0
+    # Cross-section refs
+    top_cross_section_ncs: int = 0
+    bot_cross_section_ncs: int = 0
     internal_cross_section_ncs: List[int] = field(default_factory=list)
-
-    # geometry controls (DEFAULT ADDED)
-    slices: int = 0                             # <- default added (0 => use axis stations)
-    top_zoffset: float = 0.0
-    bot_pier_elevation: float = 0.0
-    rotation_angle: float = 0.0
-
-    # other fields you already had (give safe defaults)
-    grp: int = 0
-    fixation: str = ""
-    internal_placement_id: List[str] = field(default_factory=list)
-    internal_ref_placement_id: List[str] = field(default_factory=list)
-    internal_ref_station_offset: List[float] = field(default_factory=list)
-    grp_offset: List[float] = field(default_factory=list)
-
-    # optional helper names used elsewhere
+    internal_ref_station_offset: List[float] = field(default_factory=list)  # offsets for internal_cross_section_ncs
     top_cross_section_points_name: str = ""
     bot_cross_section_points_name: str = ""
-    internal_station_value: List[float] = field(default_factory=list)
+    resolved_anchor_local_yz_mm: Optional[tuple] = None
+    resolved_anchor_world_mm: Optional[tuple] = None
+    placement_axis_obj: Axis | None = None
+    selected_cross_section_ncs: Optional[int] = None
+    _all_cross_sections_map: Optional[Dict[int, CrossSection]] = None
+    # Compatibility fields accepted from loader (not actively used)
+    top_yoffset: float = 0.0
+    top_zoffset: float = 0.0
+    bot_yoffset: float = 0.0
+    bot_zoffset: float = 0.0
+    bot_pier_elevation: float = 0.0
 
-    # ------------------------------------------------------------
-    # New: simple metadata formatter (optional; preserves your style)
-    # ------------------------------------------------------------
-    def get_object_metadata(self) -> Dict:
-        data = asdict(self)
-        # compress noisy fields like base does
-        data['axis_variables'] = f"<{len(self.axis_variables_obj)} axis variables>"
-        data['axis_variables_obj'] = f"<{len(self.axis_variables_obj)} axis variable objects>"
-        data['axis_obj'] = "<Axis object>" if getattr(self, "axis_obj", None) is not None else None
-        # remove UI-only noise
-        data.pop('axis_variables_obj', None)
-        data.pop('axis_obj', None)
-        return data
+    def configure(self,
+                  available_axes: Dict[str, Axis],
+                  available_cross_sections: Dict[int, CrossSection],
+                  available_mainstations: Dict[str, List],
+                  axis_name: Optional[str] = None,
+                  cross_section_ncs: Optional[List[int]] = None,
+                  mainstation_name: Optional[str] = None) -> None:  # noqa: D401
+        # Axis selection
+        name = axis_name or getattr(self, 'axis_name', None)
+        if name and name in available_axes:
+            self.axis_obj = available_axes[name]
+        if getattr(self, 'axis_obj', None) is not None:
+            self.placement_axis_obj = self.axis_obj
+        self._all_cross_sections_map = available_cross_sections or {}
 
-    # ------------------------------------------------------------
-    # Ownership: pier-specific geometry
-    # ------------------------------------------------------------
-    def compute_length_mm(self) -> float:
-        """
-        Pier length in mm.
-        Uses bottom pier elevation and top_zoffset. Assumes inputs in meters unless clearly mm.
-        """
-        bot = float(self.bot_pier_elevation or 0.0)
-        top = float(self.top_zoffset or 0.0)
-        # Heuristic: values < 1000 are likely meters -> convert to mm
-        if abs(bot) < 1000.0: bot *= 1000.0
-        if abs(top) < 1000.0: top *= 1000.0
-        return float(top - bot)
+        # Pick a base cross-section (top -> bot -> provided list -> any)
+        if getattr(self, 'base_section', None) is None and available_cross_sections:
+            candidate = None
+            if self.top_cross_section_ncs and self.top_cross_section_ncs in available_cross_sections:
+                candidate = available_cross_sections[self.top_cross_section_ncs]
+                self.selected_cross_section_ncs = self.top_cross_section_ncs
+            elif self.bot_cross_section_ncs and self.bot_cross_section_ncs in available_cross_sections:
+                candidate = available_cross_sections[self.bot_cross_section_ncs]
+                self.selected_cross_section_ncs = self.bot_cross_section_ncs
+            elif cross_section_ncs:
+                for n in cross_section_ncs:
+                    if n in available_cross_sections:
+                        candidate = available_cross_sections[n]
+                        self.selected_cross_section_ncs = n
+                        break
+            if candidate is None:
+                candidate = next(iter(available_cross_sections.values()))
+                for k, v in available_cross_sections.items():
+                    if v is candidate:
+                        self.selected_cross_section_ncs = k; break
+            self.base_section = candidate
 
-    def _derive_stations_mm(self, *, axis: Axis, slices: Optional[int] = None) -> np.ndarray:
-        """
-        Build stations along the axis for this pier:
-        - if user_stations set on the object -> use those
-        - else if slices set -> interpolate evenly between visible axis range
-        - else -> use full axis stations (dense path)
-        """
-        if getattr(self, "user_stations", None):
-            s_mm = np.asarray(self.user_stations, float) * 1000.0
-            return s_mm
+    def build(self, *_, **kwargs):  # type: ignore[override]
+        vertical_slices = int(kwargs.pop("vertical_slices", 6) or 6)
+        twist_deg = float(kwargs.pop("twist_deg", 0.0) or 0.0)
+        user_plan_offset_deg = float(kwargs.pop("plan_rotation_deg", 0.0) or 0.0)
 
-        if slices is None:
-            slices = int(getattr(self, "slices", 0) or 0)
+        # Height
+        h_m = float(self.height_m) if self.height_m is not None else _DEFAULT_HEIGHT_M
+        if not math.isfinite(h_m) or h_m <= 0:
+            h_m = _DEFAULT_HEIGHT_M
+        height_mm = h_m * 1000.0
 
-        axS = np.asarray(getattr(axis, "stations", []), float)
-        if axS.size == 0:
-            return np.zeros((0,), float)
-
-        smin, smax = float(np.min(axS)), float(np.max(axS))
-        if slices and slices > 1:
-            return np.linspace(smin, smax, num=int(slices), dtype=float)
-
-        # fallback: use original axis stations
-        return axS.copy()
-
-    # ------------------------------------------------------------
-    # Main: compute and embed geometry
-    # ------------------------------------------------------------
-    def compute_geometry(
-        self,
-        *,
-        ctx,
-        stations_m: Optional[List[float]] = None,   # unused for piers
-        slices: Optional[int] = None,               # vertical slices (>=2)
-        twist_deg: float = 0.0,                     # not used for the body (no twist)
-        negate_x: bool = False,                     # we place manually; local X untouched
-        default_drop_mm: float = 12000.0,
-    ) -> Dict[str, object]:
-        """
-        Minimal port of your main.py 'build_pier_matrices_for_plot' logic.
-        Orientation: pier axis = Z_dir of the DECK frame at this pier's station.
-        """
-
-        # ---------- quick helpers (keep in class or adapt to your existing ones) ----------
-        def _clamp_station_m(axis: Axis, station_m: float) -> float:
-            Smm = np.asarray(axis.stations, float)
-            if Smm.size == 0 or not np.isfinite(Smm).any():
-                return float(station_m)
-            s_mm = float(station_m) * 1000.0
-            s_eff = float(np.clip(s_mm, np.nanmin(Smm), np.nanmax(Smm)))
-            return s_eff / 1000.0
-
-        def _interp_curve_and_tangent(ax: Axis, s_mm: float) -> Tuple[np.ndarray, np.ndarray]:
-            S = np.asarray(ax.stations, float)
-            X = np.asarray(ax.x_coords, float)
-            Y = np.asarray(ax.y_coords, float)
-            Z = np.asarray(ax.z_coords, float)
-            x = np.interp(s_mm, S, X); y = np.interp(s_mm, S, Y); z = np.interp(s_mm, S, Z)
-            ds = max(1.0, 0.001 * (S[-1] - S[0]))
-            s0 = float(np.clip(s_mm - ds, S[0], S[-1]))
-            s1 = float(np.clip(s_mm + ds, S[0], S[-1]))
-            p0 = np.array([np.interp(s0, S, X), np.interp(s0, S, Y), np.interp(s0, S, Z)], float)
-            p1 = np.array([np.interp(s1, S, X), np.interp(s1, S, Y), np.interp(s1, S, Z)], float)
-            T = p1 - p0
-            n = float(np.linalg.norm(T))
-            if n == 0.0: T[:] = (1.0, 0.0, 0.0)
-            else: T /= n
-            return np.array([x, y, z], float), T
-
-        def _deck_frame(deck_axis: Axis, station_m: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-            """Return right-handed frame at deck station: (Tdeck, Y_dir, Z_dir)."""
-            Zg = np.array([0.0, 0.0, 1.0], float)
-            _, Tdeck = _interp_curve_and_tangent(deck_axis, station_m * 1000.0)
-            Y_dir = np.cross(Tdeck, Zg); nY = float(np.linalg.norm(Y_dir))
-            if nY < 1e-9:
-                Xg = np.array([1.0, 0.0, 0.0], float)
-                Y_dir = np.cross(Tdeck, Xg); nY = float(np.linalg.norm(Y_dir))
-                if nY < 1e-9:
-                    Yg = np.array([0.0, 1.0, 0.0], float)
-                    Y_dir = np.cross(Tdeck, Yg); nY = float(np.linalg.norm(Y_dir))
-            Y_dir /= max(nY, 1e-9)
-            Z_dir = np.cross(Y_dir, Tdeck); Z_dir /= max(float(np.linalg.norm(Z_dir)), 1e-9)
-            if np.dot(Z_dir, Zg) < 0.0:
-                Z_dir = -Z_dir; Y_dir = -Y_dir
-            return Tdeck, Y_dir, Z_dir
-
-        def _idx_or_default(ids: List[str], wanted: Optional[str], *, alt: Optional[str] = None) -> int:
-            try:
-                if wanted and wanted in ids: return ids.index(wanted)
-                if alt and alt in ids: return ids.index(alt)
-            except Exception:
-                pass
-            return 0
-
-        # ---------- inputs & quick exits ----------
-        axis: Optional[Axis] = getattr(self, "axis_obj", None)
-        if axis is None:
-            return {"ids": [], "stations_mm": np.array([], float),
-                    "points_mm": np.zeros((0, 0, 3), float),
-                    "local_Y_mm": np.zeros((0, 0), float),
-                    "local_Z_mm": np.zeros((0, 0), float),
-                    "loops_idx": [], "length_mm": 0.0}
-
-        # Find a deck object (prefer type == "Deck")
-        deck_obj = None
-        try:
-            cand = list(getattr(ctx, "objects_by_class", {}).get("DeckObject", []))
-            if not cand:
-                cand = list(getattr(ctx, "decks_by_name", {}).values())
-            for o in cand:
-                if getattr(o, "type", "") == "Deck":
-                    deck_obj = o; break
-            if deck_obj is None and cand:
-                deck_obj = cand[0]
-        except Exception:
-            pass
-        deck_axis = getattr(deck_obj, "axis_obj", None) or axis
-
-        # Station to use (simple & faithful to your old main: StationValue → clamp to *deck* axis)
-        st_raw = float(getattr(self, "station_value", 0.0) or 0.0)
-        st_m   = _clamp_station_m(deck_axis, st_raw)
-
-        # Names & offsets
-        top_name = getattr(self, "top_cross_section_points_name", "") or ""
-        bot_name = getattr(self, "bot_cross_section_points_name", "") or top_name
-        top_y_off_mm = float(getattr(self, "top_yoffset", 0.0))
-        top_z_off_mm = float(getattr(self, "top_zoffset", 0.0))
-        bot_y_off_mm = float(getattr(self, "bot_yoffset", 0.0))
-        bot_z_off_mm = float(getattr(self, "bot_zoffset", 0.0))
-        pier_elev_mm = float(getattr(self, "bot_pier_elevation", 0.0) or 0.0)
-        if abs(pier_elev_mm) < 1000.0: pier_elev_mm *= 1000.0  # m → mm
-
-        # ---------- frame at deck, pier axis = Z_dir ----------
-        Tdeck, Y_dir, Z_dir = _deck_frame(deck_axis, st_m)
-        Tpier = Z_dir  # your requirement
-
-        # ---------- anchor on the DECK section point (fallback: curve point) ----------
-        # Get the deck slice at st_m so we can pick a named point
-        top_anchor_mm: np.ndarray
-        Pd0 = None; deck_ids: List[str] = []
-        if deck_obj is not None:
-            try:
-                dgeo = deck_obj.compute_geometry(ctx=ctx, stations_m=[st_m], twist_deg=90.0, negate_x=True)
-                deck_ids = dgeo.get("ids") or []
-                Pdeck = np.asarray(dgeo.get("points_mm"), float)
-                if Pdeck.ndim == 3 and Pdeck.shape[0] >= 1:
-                    Pd0 = Pdeck[0]  # (N,3)
-            except Exception:
-                Pd0 = None
-
-        if Pd0 is not None and deck_ids:
-            j_top = _idx_or_default(deck_ids, top_name, alt="RA") if top_name else 0
-            top_anchor_mm = Pd0[j_top].astype(float)
+        # Anchor sampling
+        if self.resolved_anchor_world_mm is not None:
+            wx, wy, wz = map(float, self.resolved_anchor_world_mm)
+            base_pos_mm = np.array([wx, wy, wz], float)
+            anchor_point_source = 'world_provided'; anchor_found = True; yaw_deg = 0.0
+        elif self.placement_axis_obj is not None:
+            station_m = self.placement_axis_obj.clamp_station_m(float(self.station_value))
+            s_mm = station_m * 1000.0
+            P_exact, T_exact = self.placement_axis_obj._positions_and_tangents(np.array([s_mm], float))
+            base_pos_mm = P_exact[0]
+            tan_xy = np.array([T_exact[0][0], T_exact[0][1]], float)
+            yaw_deg = 0.0 if np.linalg.norm(tan_xy) < 1e-9 else math.degrees(math.atan2(tan_xy[1], tan_xy[0]))
+            anchor_point_source = 'axis_sample'; anchor_found = True
         else:
-            # fallback: point on the deck curve
-            S = np.asarray(deck_axis.stations, float)
-            X = np.asarray(deck_axis.x_coords, float)
-            Y = np.asarray(deck_axis.y_coords, float)
-            Z = np.asarray(deck_axis.z_coords, float)
-            s_mm = st_m * 1000.0
-            top_anchor_mm = np.array([np.interp(s_mm, S, X),
-                                    np.interp(s_mm, S, Y),
-                                    np.interp(s_mm, S, Z)], float)
+            base_pos_mm = np.zeros(3, float)
+            yaw_deg = 0.0; anchor_point_source = 'origin'; anchor_found = False
 
-        # In-plane basis (U,V) in the section plane ⟂ Tpier
-        U = Y_dir          # lateral
-        V = Tdeck          # longitudinal
+        plan_rotation_deg = yaw_deg + user_plan_offset_deg + float(self.plan_rotation_add_deg or 0.0)
+        anchor_name = ''
 
-        # Apply top offsets (in-plane)
-        top_anchor_mm = top_anchor_mm + top_y_off_mm * U + top_z_off_mm * V
+        # Precomputed sequencing only (created by loader). Map to section objects if available.
+        steps = getattr(self, 'ncs_steps', None)
+        if steps and self._all_cross_sections_map:
+            tmp_map = {}
+            for _, n in steps:
+                try:
+                    cs = self._all_cross_sections_map.get(int(n))
+                except Exception:
+                    cs = None
+                if cs is not None:
+                    tmp_map[int(n)] = cs
+            if tmp_map:
+                self.sections_by_ncs = tmp_map
+        if self.base_section is None and self.sections_by_ncs:
+            self.base_section = next(iter(self.sections_by_ncs.values()))
 
-        # Length / bottom anchor (downward from top along -Z_dir; axis itself is Z_dir)
-        drop_mm = pier_elev_mm + bot_z_off_mm
-        if drop_mm < 1000.0: drop_mm = float(default_drop_mm)
-        bottom_anchor_mm = top_anchor_mm + (-drop_mm) * Tpier + bot_y_off_mm * U
+        # Vertical axis top-down
+        stations_mm = [0.0, height_mm]
+        x_coords = [base_pos_mm[0], base_pos_mm[0]]
+        y_coords = [base_pos_mm[1], base_pos_mm[1]]
+        z_coords = [base_pos_mm[2], base_pos_mm[2] - height_mm]
+        vertical_axis = Axis(stations_mm, x_coords, y_coords, z_coords, units="mm")
 
-        # ---------- evaluate the pier's 2D section ONCE (local arrays only) ----------
-        # pick a section: prefer named top/bot, else by NCS, else empty
-        top_cs = None
-        if getattr(self, "top_cross_section_name", None):
-            top_cs = getattr(ctx, "crosssec_by_name", {}).get(self.top_cross_section_name)
-        if top_cs is None:
-            ncs_list = getattr(self, "internal_cross_section_ncs", []) or []
-            if ncs_list:
-                top_cs = getattr(ctx, "crosssec_by_ncs", {}).get(int(ncs_list[-1]))
-        if top_cs is None:
-            return {"ids": [], "stations_mm": np.array([], float),
-                    "points_mm": np.zeros((0, 0, 3), float),
-                    "local_Y_mm": np.zeros((0, 0), float),
-                    "local_Z_mm": np.zeros((0, 0), float),
-                    "loops_idx": [], "length_mm": float(drop_mm)}
-
-        # Axis variables at this station (meters in, engine handles units)
-        var_rows = AxisVariable.evaluate_at_stations_cached(getattr(self, "axis_variables_obj", None), [st_m]) or [{}]
-        ids, X_mm, Y_mm, loops_idx = top_cs.compute_local_points(axis_var_results=var_rows, negate_x=False)
-        if not ids:
-            return {"ids": [], "stations_mm": np.array([], float),
-                    "points_mm": np.zeros((0, 0, 3), float),
-                    "local_Y_mm": np.zeros((0, 0), float),
-                    "local_Z_mm": np.zeros((0, 0), float),
-                    "loops_idx": [], "length_mm": float(drop_mm)}
-
-        # Engine convention: local Y == X_mm, local Z == Y_mm
-        y_mm = np.asarray(X_mm[0], float)  # (N,)
-        z_mm = np.asarray(Y_mm[0], float)  # (N,)
-
-        # ---------- build S slices along the pier axis; sections live in plane (U,V) ----------
-        S = max(2, int(slices or getattr(self, "slices", 0) or 2))
-        alphas = np.linspace(0.0, 1.0, S)[:, None]                # (S,1)
-        line_vec = (bottom_anchor_mm - top_anchor_mm)[None, :]    # (1,3)
-        anchors = top_anchor_mm[None, :] + alphas * line_vec      # (S,3)
-
-        offs = (y_mm[:, None] * U[None, :]) + (z_mm[:, None] * V[None, :])  # (N,3)
-        P_mm = anchors[:, None, :] + offs[None, :, :]                         # (S,N,3)
-
-        # repeat local coords for hover/meta
-        X_out = np.tile(y_mm[None, :], (S, 1))
-        Y_out = np.tile(z_mm[None, :], (S, 1))
-        length_mm = float(np.linalg.norm(line_vec))
-        stations_mm = np.linspace(0.0, length_mm, S)
-
-        # ---------- per-pier Axis (NOT RA) for plotting ----------
-        pier_axis = Axis(
-            stations=[0.0, length_mm / 1000.0],
-            x_coords=[float(top_anchor_mm[0]) / 1000.0, float(bottom_anchor_mm[0]) / 1000.0],
-            y_coords=[float(top_anchor_mm[1]) / 1000.0, float(bottom_anchor_mm[1]) / 1000.0],
-            z_coords=[float(top_anchor_mm[2]) / 1000.0, float(bottom_anchor_mm[2]) / 1000.0],
-            units="m",
-        )
+        prev_axis = self.axis_obj
+        self.axis_obj = vertical_axis
         try:
-            pier_axis.name = f"{getattr(self,'name','Pier')} Axis"
+            stations_m = np.linspace(0.0, height_mm/1000.0, max(2, vertical_slices)).tolist()
+            res = super().build(stations_m=stations_m,
+                                 twist_deg=twist_deg,
+                                 plan_rotation_deg=plan_rotation_deg)
+            res['axis'] = vertical_axis
+            res.setdefault('meta', {})
+            res['meta'].update({
+                'base_pos_mm': base_pos_mm.tolist(),
+                'yaw_deg': yaw_deg,
+                'anchor_mode': 'top_down',
+                'anchor_point_name': anchor_name,
+                'anchor_found': anchor_found,
+                'anchor_point_source': anchor_point_source,
+                'anchor_world_provided': bool(self.resolved_anchor_world_mm),
+                'ncs_steps': getattr(self, 'ncs_steps', None),
+                'selected_ncs': self.selected_cross_section_ncs
+            })
+            return res
+        finally:
+            self.axis_obj = prev_axis
+
+    def set_world_anchor(self, world_point_mm: tuple | List[float] | np.ndarray):
+        try:
+            arr = list(world_point_mm)
+            self.resolved_anchor_world_mm = (float(arr[0]), float(arr[1]), float(arr[2]))
+        except Exception as e:
+            raise ValueError("world_point_mm must be iterable with 3 numeric elements") from e
+        return self
+
+    def set_anchor_from_deck(self, deck_result: Dict, point_name: str, *, slice_index: int = 0):
+        pts = deck_result.get('points_world_mm')
+        ids = deck_result.get('ids')
+        if pts is None or ids is None:
+            return self
+        try:
+            ids_arr = np.asarray(ids)
+            pts_arr = np.asarray(pts)
+            mask = ids_arr == point_name
+            if mask.any():
+                first_idx = np.where(mask)[0][0]
+                coord = pts_arr[slice_index, first_idx]
+                self.resolved_anchor_world_mm = (float(coord[0]), float(coord[1]), float(coord[2]))
         except Exception:
             pass
-        self._generated_axis_obj = pier_axis  # handy for plotting
+        return self
 
-        return {
-            "ids": ids,
-            "stations_mm": stations_mm,
-            "points_mm": P_mm,
-            "local_Y_mm": X_out,
-            "local_Z_mm": Y_out,
-            "loops_idx": loops_idx,
-            "length_mm": length_mm,
-            "pier_axis": pier_axis,
-        }
+__all__ = ["PierObject"]

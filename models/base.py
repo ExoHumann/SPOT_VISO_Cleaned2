@@ -17,11 +17,13 @@ import logging
 
 log = logging.getLogger(__name__)
 
-from typing import Dict, List, Optional
+# models/base.py
+from typing import Dict, List, Optional, Tuple
 import os, json
+from models.axis import Axis
 from models.cross_section import CrossSection
-from models.linear_object import LinearObject
 
+# ---------- existing ----------
 def load_axis_from_rows(axis_rows: List[Dict], axis_name: str) -> Axis:
     row = next((r for r in axis_rows if r.get("Class") == "Axis" and str(r.get("Name")) == axis_name), None)
     if row is None:
@@ -32,43 +34,66 @@ def load_axis_from_rows(axis_rows: List[Dict], axis_name: str) -> Axis:
     z = [float(v) for v in row.get("CurvCoorZ", [])]
     return Axis(s, x, y, z, units="m")
 
-def choose_section_json_path(deck_row: Dict, cross_rows: List[Dict], fallback_path: str) -> str:
-    cs_names = deck_row.get("CrossSection@Name") or []
-    for nm in cs_names:
-        cs_row = next((r for r in cross_rows if r.get("Class")=="CrossSection" and str(r.get("Name"))==nm), None)
-        if cs_row is None: continue
-        jnames = cs_row.get("JSON_name") or []
-        if isinstance(jnames, list) and jnames:
-            cand = jnames[0].replace("\\", "/")
-            if os.path.isabs(cand):
-                return cand
-            # fallback: keep provided path’s directory, but use filename from JSON_name
-            base_dir = os.path.dirname(fallback_path) or "."
-            return os.path.join(base_dir, os.path.basename(cand))
+# ---------- NEW: index cross-sections by NCS ----------
+def index_cross_sections_by_ncs(cross_rows: List[Dict]) -> Dict[int, Dict]:
+    by_ncs: Dict[int, Dict] = {}
+    for r in cross_rows:
+        if r.get("Class") != "CrossSection":
+            continue
+        try:
+            ncs = int(r.get("NCS"))
+        except Exception:
+            continue
+        by_ncs[ncs] = r
+    return by_ncs
+
+def choose_section_path_for_ncs(cs_row: Dict, fallback_path: str) -> str:
+    jnames = cs_row.get("JSON_name") or []
+    if isinstance(jnames, list) and jnames:
+        cand = str(jnames[0]).replace("\\", "/")
+        if os.path.isabs(cand):
+            return cand
+        base_dir = os.path.dirname(fallback_path) or "."
+        return os.path.join(base_dir, os.path.basename(cand))
     return fallback_path
 
-def load_section(path: str, name: Optional[str]=None) -> CrossSection:
-    return CrossSection.from_file(path, name=name or "Section")
+def load_section_for_ncs(ncs: int, by_ncs: Dict[int, Dict], fallback_path: str) -> CrossSection:
+    row = by_ncs.get(int(ncs))
+    if not row:
+        return CrossSection.from_file(fallback_path, name=f"CS_NCS_{ncs}")
+    path = choose_section_path_for_ncs(row, fallback_path)
+    nm = str(row.get("Name") or f"CS_NCS_{ncs}")
+    return CrossSection.from_file(path, name=nm)
 
-def make_linear_object(deck_row: Dict, axis: Axis, section: CrossSection) -> LinearObject:
-    axis_vars = deck_row.get("AxisVariables") or []
-    if isinstance(axis_vars, dict):
-        axis_vars = []
-    return LinearObject(
-        name=str(deck_row.get("Name") or "LinearObject"),
-        axis=axis,
-        section=section,
-        axis_variables_rows=axis_vars,
-    )
+# ---------- NEW: step function from Deck row (stations → NCS) ----------
+def cs_steps_from_deck_row(deck_row: Dict) -> List[Tuple[float, int]]:
+    xs = [float(x) for x in (deck_row.get("StationValue") or [])]
+    ns = [int(n)   for n in (deck_row.get("CrossSection@Ncs") or [])]
+    steps = [(x, n) for x, n in zip(xs, ns)]
+    steps.sort(key=lambda t: t[0])
+    return steps
 
+def ncs_at_station(s_m: float, steps: List[Tuple[float, int]]) -> Optional[int]:
+    if not steps:
+        return None
+    active = steps[0][1]
+    for x, n in steps:
+        if s_m >= x:
+            active = n
+        else:
+            break
+    return active
+
+# ---------- unchanged helper ----------
 def _get_cls_map(cls, mapping_config: dict) -> dict:
-    """Find the mapping block for a class, accepting class object or name."""
-    if cls in mapping_config:
-        return mapping_config[cls] or {}
+    if cls in mapping_config: return mapping_config[cls] or {}
     name = getattr(cls, "__name__", str(cls))
-    if name in mapping_config:
-        return mapping_config[name] or {}
+    if name in mapping_config: return mapping_config[name] or {}
     return {}
+
+# ---------- (optional) legacy maker by name still here if needed ----------
+# Removed make_linear_object function as LinearObject is now a base class
+
 
 def _eval_spec(row: dict, spec):
     """
@@ -146,6 +171,7 @@ def from_dict(cls, row: dict, mapping_config: dict, *, axis_data=None, verbose: 
 
     cls_map = _get_cls_map(cls, mapping_config)
     fdefs = {f.name: f for f in fields(cls)}
+
     kwargs = {}
 
     for fname, fdef in fdefs.items():
@@ -169,6 +195,81 @@ def from_dict(cls, row: dict, mapping_config: dict, *, axis_data=None, verbose: 
         log.debug("[from_dict] Creating %s with kwargs keys=%s", getattr(cls, "__name__", cls), list(kwargs.keys()))
     return cls(**kwargs)
 
+# ----------------------------------------------------------------------------
+# Dedicated PierObject loader (bypasses generic mapping when needed)
+# ----------------------------------------------------------------------------
+def simple_load_piers(rows: List[dict]) -> List["PierObject"]:
+    """Ultra-minimal PierObject loader.
+
+    Accepts rows where Class == 'PierObject' and Type == 'Pier'. Extracts only fields
+    actually used downstream: name, axis_name, station_value, top/bot NCS + point ids,
+    offsets, elevation, axis variables.
+    """
+    from .pier_object import PierObject
+    out: List[PierObject] = []
+    for r in rows or []:
+        if r.get("Class") != "PierObject" or r.get("Type") != "Pier":
+            continue
+        # Infer height if top/bot z offsets present
+        try:
+            top_z = float(r.get("Top-Zoffset", 0.0) or 0.0)
+            bot_z = float(r.get("Bot-Zoffset", 0.0) or 0.0)
+            inferred_height = abs(top_z - bot_z)
+        except Exception:
+            inferred_height = 0.0
+        # Parse internal offsets list
+        raw_offs = r.get("Internal_Ref-StationOffset") or []
+        internal_offs: List[float] = []
+        if isinstance(raw_offs, list):
+            for v in raw_offs:
+                try:
+                    fv = float(v)
+                    internal_offs.append(fv)
+                except Exception:
+                    continue
+        # Build internal NCS + offsets
+        internal_ncs = [int(v) for v in (r.get("Internal-CrossSection@Ncs") or []) if isinstance(v, (int, float, str))]
+        p = PierObject(
+            name=str(r.get("Name", "")),
+            axis_name=str(r.get("Axis@Name", "")),
+            station_value=float(r.get("StationValue", 0.0) or 0.0),
+            height_m=inferred_height if inferred_height > 0 else None,
+            top_cross_section_points_name=str(r.get("Top-CrossSection_Points@Name", "")),
+            bot_cross_section_points_name=str(r.get("Bot-CrossSection_Points@Name", "")),
+            top_cross_section_ncs=int(r.get("Top-CrossSection@Ncs", 0) or 0),
+            bot_cross_section_ncs=int(r.get("Bot-CrossSection@Ncs", 0) or 0),
+            internal_cross_section_ncs=internal_ncs,
+            internal_ref_station_offset=internal_offs,
+        )
+        # Pre-compute ncs_steps if we have offsets and internal ncs count matches offsets
+        try:
+            if internal_ncs and internal_offs and len(internal_ncs) == len(internal_offs):
+                steps = [(0.0, int(p.top_cross_section_ncs or internal_ncs[0]))]
+                # clamp offsets to height if known
+                h_m = float(p.height_m) if p.height_m else max(internal_offs) if internal_offs else 0.0
+                cleaned_pairs = []
+                for off, n in zip(internal_offs, internal_ncs):
+                    try:
+                        offc = max(0.0, min(h_m if h_m > 0 else off, float(off)))
+                        cleaned_pairs.append((offc, int(n)))
+                    except Exception:
+                        continue
+                for offc, n in sorted(cleaned_pairs, key=lambda x: x[0]):
+                    if (offc, n) not in steps:
+                        steps.append((float(offc), int(n)))
+                bot_code = int(p.bot_cross_section_ncs or (internal_ncs[-1] if internal_ncs else p.top_cross_section_ncs))
+                if not steps or steps[-1][0] != h_m or steps[-1][1] != bot_code:
+                    if h_m > 0:
+                        steps.append((float(h_m), bot_code))
+                p.ncs_steps = steps
+        except Exception:
+            pass
+        av = r.get("AxisVariables")
+        if isinstance(av, list):
+            p.axis_variables = av
+        out.append(p)
+    return out
+
 def _build_axis_index(axis_data, axis_map=None):
     """
     Minimal compatibility stub used by some modules.
@@ -191,6 +292,7 @@ def _build_axis_index(axis_data, axis_map=None):
         pass
     return idx
 
+@dataclass
 class BaseObject:
     """
     Shared behavior & state for DeckObject / PierObject / FoundationObject.
@@ -381,127 +483,127 @@ def _tiny_hash(arr) -> str:
     data = (','.join(str(float(v)) for v in arr)).encode('utf-8')
     return hashlib.blake2b(data, digest_size=12).hexdigest()
 
-# def _as_floats(val) -> List[float]:
-#     out = []
-#     if val is None: 
-#         return out
-#     if not isinstance(val, (list, tuple)):
-#         val = [val]
-#     for v in val:
-#         try:
-#             out.append(float(v))
-#         except Exception:
-#             pass
-#     return out
+def _as_floats(val) -> List[float]:
+    out = []
+    if val is None: 
+        return out
+    if not isinstance(val, (list, tuple)):
+        val = [val]
+    for v in val:
+        try:
+            out.append(float(v))
+        except Exception:
+            pass
+    return out
 
-# def _as_str_list(val) -> List[str]:
-#     if val is None:
-#         return []
-#     if isinstance(val, str):
-#         return [val]
-#     if isinstance(val, (list, tuple)):
-#         return [str(x) for x in val]
-#     return [str(val)]
+def _as_str_list(val) -> List[str]:
+    if val is None:
+        return []
+    if isinstance(val, str):
+        return [val]
+    if isinstance(val, (list, tuple)):
+        return [str(x) for x in val]
+    return [str(val)]
 
-# def _axis_vars_signature(rows: List[Dict]) -> str:
-#     import hashlib, json
-#     try:
-#         blob = json.dumps(rows or [], sort_keys=True, ensure_ascii=False, default=str)
-#     except Exception:
-#         blob = str(rows)
-#     return hashlib.blake2b(blob.encode("utf-8"), digest_size=16).hexdigest()
+def _axis_vars_signature(rows: List[Dict]) -> str:
+    import hashlib, json
+    try:
+        blob = json.dumps(rows or [], sort_keys=True, ensure_ascii=False, default=str)
+    except Exception:
+        blob = str(rows)
+    return hashlib.blake2b(blob.encode("utf-8"), digest_size=16).hexdigest()
 
-# def create_axis_variables(json_data: List[Dict], var_map: Dict) -> List[AxisVariable]:
-#     # Uses your existing AxisVariable API; this expects keys already normalized.
+def create_axis_variables(json_data: List[Dict], var_map: Dict) -> List[AxisVariable]:
+    # Uses your existing AxisVariable API; this expects keys already normalized.
 
-#     name_k = var_map.get("VariableName",       "VariableName")
-#     xs_k   = var_map.get("StationValue",       "StationValue")      # <-- was "VariableStations"
-#     ys_k   = var_map.get("VariableValues",     "VariableValues")
-#     typ_k  = var_map.get("VariableIntTypes",   "VariableIntTypes")
-#     desc_k = var_map.get("VariableDescription","VariableDescription")
-#     ...
+    name_k = var_map.get("VariableName",       "VariableName")
+    xs_k   = var_map.get("StationValue",       "StationValue")      # <-- was "VariableStations"
+    ys_k   = var_map.get("VariableValues",     "VariableValues")
+    typ_k  = var_map.get("VariableIntTypes",   "VariableIntTypes")
+    desc_k = var_map.get("VariableDescription","VariableDescription")
+    ...
 
-#     normalized: List[Dict] = []
-#     for row in (json_data or []):
-#         mapped = { var_map.get(k, k): v for k, v in row.items() }
-#         name = str(mapped.get(name_k, "")).strip()
-#         xs   = _as_floats(mapped.get(xs_k))
-#         ys   = _as_floats(mapped.get(ys_k))
-#         tys  = _as_str_list(mapped.get(typ_k))
-#         desc = mapped.get(desc_k, "")
-#         if len(xs) != len(ys):
-#             n = min(len(xs), len(ys))
-#             xs, ys = xs[:n], ys[:n]
-#         pairs = sorted(zip(xs, ys), key=lambda t: t[0])
-#         xs = [p[0] for p in pairs]
-#         ys = [p[1] for p in pairs]
-#         if not name or not xs:
-#             continue
-#         normalized.append({
-#             name_k: name,
-#             xs_k:   xs,
-#             ys_k:   ys,
-#             typ_k:  tys or ["linear"],
-#             desc_k: desc,
-#         })
-#     return AxisVariable.create_axis_variables(normalized)
+    normalized: List[Dict] = []
+    for row in (json_data or []):
+        mapped = { var_map.get(k, k): v for k, v in row.items() }
+        name = str(mapped.get(name_k, "")).strip()
+        xs   = _as_floats(mapped.get(xs_k))
+        ys   = _as_floats(mapped.get(ys_k))
+        tys  = _as_str_list(mapped.get(typ_k))
+        desc = mapped.get(desc_k, "")
+        if len(xs) != len(ys):
+            n = min(len(xs), len(ys))
+            xs, ys = xs[:n], ys[:n]
+        pairs = sorted(zip(xs, ys), key=lambda t: t[0])
+        xs = [p[0] for p in pairs]
+        ys = [p[1] for p in pairs]
+        if not name or not xs:
+            continue
+        normalized.append({
+            name_k: name,
+            xs_k:   xs,
+            ys_k:   ys,
+            typ_k:  tys or ["linear"],
+            desc_k: desc,
+        })
+    return AxisVariable.create_axis_variables(normalized)
 
-# #── Multi-candidate raw-key resolver ────────────────────────────────────────────
-# def _raw_candidates_for(internal: str, cls_map: dict[str, str]) -> list[str]:
-#     """
-#     All raw keys that map to this internal field (handles aliases like
-#     'Top-CrossSection@Ncs' and 'Top-CrossSection@NCS').
-#     """
-#     return [rk for rk, v in (cls_map or {}).items() if v == internal]
+#── Multi-candidate raw-key resolver ────────────────────────────────────────────
+def _raw_candidates_for(internal: str, cls_map: dict[str, str]) -> list[str]:
+    """
+    All raw keys that map to this internal field (handles aliases like
+    'Top-CrossSection@Ncs' and 'Top-CrossSection@NCS').
+    """
+    return [rk for rk, v in (cls_map or {}).items() if v == internal]
 
-# def _pick_raw_key(internal: str, cls_map: dict[str, str], data: dict, fallback_same_name=True) -> str | None:
-#     """
-#     Pick the first raw key for 'internal' that exists in 'data'.
-#     If none exists and fallback_same_name is True, try the internal name itself.
-#     """
-#     for k in _raw_candidates_for(internal, cls_map):
-#         if k in data:
-#             return k
-#     if fallback_same_name and internal in data:
-#         return internal
-#     return None
+def _pick_raw_key(internal: str, cls_map: dict[str, str], data: dict, fallback_same_name=True) -> str | None:
+    """
+    Pick the first raw key for 'internal' that exists in 'data'.
+    If none exists and fallback_same_name is True, try the internal name itself.
+    """
+    for k in _raw_candidates_for(internal, cls_map):
+        if k in data:
+            return k
+    if fallback_same_name and internal in data:
+        return internal
+    return None
 
-# # ── Robust Axis type detector ───────────────────────────────────────────────────
-# def _is_axis_type(tp) -> bool:
-#     """
-#     Returns True if the type annotation contains models.axis.Axis anywhere:
-#     Axis, Optional[Axis], Union[Axis, None], List[Axis], Tuple[Axis, ...],
-#     or a forward-ref string like "Axis" / "models.axis.Axis".
-#     """
-#     if tp is None:
-#         return False
+# ── Robust Axis type detector ───────────────────────────────────────────────────
+def _is_axis_type(tp) -> bool:
+    """
+    Returns True if the type annotation contains models.axis.Axis anywhere:
+    Axis, Optional[Axis], Union[Axis, None], List[Axis], Tuple[Axis, ...],
+    or a forward-ref string like "Axis" / "models.axis.Axis".
+    """
+    if tp is None:
+        return False
 
-#     # string forward-ref
-#     if isinstance(tp, str):
-#         return tp.split(".")[-1] == "Axis"
+    # string forward-ref
+    if isinstance(tp, str):
+        return tp.split(".")[-1] == "Axis"
 
-#     AxisClass = None
-#     try:
-#         from models.axis import Axis as AxisClass  # your real Axis class
-#     except Exception:
-#         pass
+    AxisClass = None
+    try:
+        from models.axis import Axis as AxisClass  # your real Axis class
+    except Exception:
+        pass
 
-#     if AxisClass is not None and tp is AxisClass:
-#         return True
+    if AxisClass is not None and tp is AxisClass:
+        return True
 
-#     origin = get_origin(tp) or getattr(tp, "__origin__", None)
-#     args   = get_args(tp)   or getattr(tp, "__args__", ())
+    origin = get_origin(tp) or getattr(tp, "__origin__", None)
+    args   = get_args(tp)   or getattr(tp, "__args__", ())
 
-#     if origin is None:
-#         # tolerate direct class compare by name
-#         return getattr(tp, "__name__", "") == "Axis"
+    if origin is None:
+        # tolerate direct class compare by name
+        return getattr(tp, "__name__", "") == "Axis"
 
-#     # containers
-#     if origin in (list, set, tuple):
-#         return any(_is_axis_type(a) for a in args)
+    # containers
+    if origin in (list, set, tuple):
+        return any(_is_axis_type(a) for a in args)
 
-#     # Optional/Union
-#     if origin is Union:
-#         return any(_is_axis_type(a) for a in args if a is not type(None))
+    # Optional/Union
+    if origin is Union:
+        return any(_is_axis_type(a) for a in args if a is not type(None))
 
-#     return False
+    return False

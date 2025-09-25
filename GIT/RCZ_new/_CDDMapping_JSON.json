@@ -1,0 +1,211 @@
+[
+  {
+    "No": "1",
+    "Class": "CDDMapping",
+    "Type": "Info",
+    "Description": null,
+    "Name": "GlobalVariables",
+    "InActive": null,
+    "AssetClass": "GlobalVariables",
+    "AssetSubcategory": "to be added by Augustine",
+    "AssetCategory": "to be added by Augustine"
+  },
+  {
+    "No": "2",
+    "Class": "CDDMapping",
+    "Type": "Info",
+    "Description": null,
+    "Name": "Axis",
+    "InActive": null,
+    "AssetClass": "Axis",
+    "AssetSubcategory": "to be added by Augustine",
+    "AssetCategory": "to be added by Augustine"
+  },
+  {
+    "No": "3",
+    "Class": "CDDMapping",
+    "Type": "Info",
+    "Description": null,
+    "Name": "Materials",
+    "InActive": null,
+    "AssetClass": "Materials",
+    "AssetSubcategory": "to be added by Augustine",
+    "AssetCategory": "to be added by Augustine"
+  },
+  {
+    "No": "4",
+    "Class": "CDDMapping",
+    "Type": "Info",
+    "Description": null,
+    "Name": "CrossSection",
+    "InActive": null,
+    "AssetClass": "CrossSection",
+    "AssetSubcategory": "to be added by Augustine",
+    "AssetCategory": "to be added by Augustine"
+  },
+  {
+    "No": "5",
+    "Class": "CDDMapping",
+    "Type": "Info",
+    "Description": null,
+    "Name": "CrossSection_Points",
+    "InActive": null,
+    "AssetClass": "CrossSection_Points",
+    "AssetSubcategory": "to be added by Augustine",
+    "AssetCategory": "to be added by Augustine"
+  },
+  {
+    "No": "6",
+    "Class": "CDDMapping",
+    "Type": "Info",
+    "Description": null,
+    "Name": "CrossSection_Variables",
+    "InActive": null,
+    "AssetClass": "CrossSection_Variables",
+    "AssetSubcategory": "to be added by Augustine",
+    "AssetCategory": "to be added by Augustine"
+  },
+  {
+    "No": "7",
+    "Class": "CDDMapping",
+    "Type": "Info",
+    "Description": null,
+    "Name": "MainStation",
+    "InActive": null,
+    "AssetClass": "MainStation",
+    "AssetSubcategory": "to be added by Augustine",
+    "AssetCategory": "to be added by Augustine"
+  },
+  {
+    "No": "8",
+    "Class": "CDDMapping",
+    "Type": "Info",
+    "Description": null,
+    "Name": "DeckObject",
+    "InActive": null,
+    "AssetClass": "DeckObject",
+    "AssetSubcategory": "to be added by Augustine",
+    "AssetCategory": "to be added by Augustine"
+  },
+  {
+    "No": "9",
+    "Class": "CDDMapping",
+    "Type": "Info",
+    "Description": null,
+    "Name": "DeckObject_AxisVariables",
+    "InActive": null,
+    "AssetClass": "DeckObject_AxisVariables",
+    "AssetSubcategory": "to be added by Augustine",
+    "AssetCategory": "to be added by Augustine"
+  },
+  {
+    "No": "10",
+    "Class": "CDDMapping",
+    "Type": "Info",
+    "Description": null,
+    "Name": "SecondaryObject",
+    "InActive": null,
+    "AssetClass": "SecondaryObject",
+    "AssetSubcategory": "to be added by Augustine",
+    "AssetCategory": "to be added by Augustine"
+  },
+  {
+    "No": "11",
+    "Class": "CDDMapping",
+    "Type": "Info",
+    "Description": null,
+    "Name": "PierObject",
+    "InActive": null,
+    "AssetClass": "PierObject",
+    "AssetSubcategory": "to be added by Augustine",
+    "AssetCategory": "to be added by Augustine"
+  },
+  {
+    "No": "12",
+    "Class": "CDDMapping",
+    "Type": "Info",
+    "Description": null,
+    "Name": "PierObject_AxisVariables",
+    "InActive": null,
+    "AssetClass": "PierObject_AxisVariables",
+    "AssetSubcategory": "to be added by Augustine",
+    "AssetCategory": "to be added by Augustine"
+  },
+  {
+    "No": "13",
+    "Class": "CDDMapping",
+    "Type": "Info",
+    "Description": null,
+    "Name": "FoundationObject",
+    "InActive": null,
+    "AssetClass": "FoundationObject",
+    "AssetSubcategory": "to be added by Augustine",
+    "AssetCategory": "to be added by Augustine"
+  },
+  {
+    "No": "14",
+    "Class": "CDDMapping",
+    "Type": "Info",
+    "Description": null,
+    "Name": "FoundationObject_AxisVariables",
+    "InActive": null,
+    "AssetClass": "FoundationObject_AxisVariables",
+    "AssetSubcategory": "to be added by Augustine",
+    "AssetCategory": "to be added by Augustine"
+  },
+  {
+    "No": "15",
+    "Class": "CDDMapping",
+    "Type": "Info",
+    "Description": null,
+    "Name": "BearingArticulation",
+    "InActive": null,
+    "AssetClass": "BearingArticulation",
+    "AssetSubcategory": "to be added by Augustine",
+    "AssetCategory": "to be added by Augustine"
+  },
+  {
+    "No": null,
+    "Class": "ClassInfo",
+    "Type": "PackingSize",
+    "Description": "When creating JSON.json files you can choose whether each column vaues maps to a single value or a list of values",
+    "Name": "CDDMapping",
+    "InActive": null,
+    "AssetClass": "[one]",
+    "AssetSubcategory": "[one]",
+    "AssetCategory": "[one]"
+  },
+  {
+    "No": null,
+    "Class": "ClassInfo",
+    "Type": "PackingType",
+    "Description": "When creating JSON.json files you can choose the type for each column values",
+    "Name": "CDDMapping",
+    "InActive": null,
+    "AssetClass": "[Str]",
+    "AssetSubcategory": "[Str]",
+    "AssetCategory": "[Str]"
+  },
+  {
+    "No": null,
+    "Class": "ClassInfo",
+    "Type": "Workflow",
+    "Description": "When creating JSON.json files you can mark some specific columns which are only relevant for given workflow",
+    "Name": "CDDMapping",
+    "InActive": null,
+    "AssetClass": null,
+    "AssetSubcategory": null,
+    "AssetCategory": null
+  },
+  {
+    "No": null,
+    "Class": "ClassInfo",
+    "Type": "Unit",
+    "Description": null,
+    "Name": "CDDMapping",
+    "InActive": null,
+    "AssetClass": null,
+    "AssetSubcategory": null,
+    "AssetCategory": null
+  }
+]

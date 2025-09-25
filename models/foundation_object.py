@@ -4,64 +4,64 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-from .base import BaseObject
+from .linear_object import LinearObject
 from .axis import Axis
 from .cross_section import CrossSection
 from .axis_variable import AxisVariable
 
-@dataclass(kw_only=True)
-class FoundationObject(BaseObject):
-    no: str
-    class_name: str
-    type: str
-    description: str
-    name: str
-    inactive: str
-    object_axis_name: str
-    cross_section_type: str
-    cross_section_name: str
-    ref_placement_id: str
-    ref_station_offset: float
-    station_value: float
-    cross_section_points_name: str
-    foundation_ref_point_y_offset: float
-    foundation_ref_point_x_offset: float
-    foundation_level: float
-    rotation_angle: float
-    axis_name: str
-    pier_object_name: List[str]
-    point1: str
-    point2: str
-    point3: str
-    point4: str
-    thickness: str
-    grp: str
-    cross_section_ncs2: int
-    top_z_offset: float
-    bot_z_offset: float
-    top_x_offset: float
-    top_y_offset: float
-    pile_dir_angle: float
-    pile_slope: float
-    kx: float
-    ky: float
-    kz: float
-    rx: float
-    ry: float
-    rz: float
-    fixation: str
-    eval_pier_object_name: str
-    eval_station_value: float
-    eval_bot_cross_section_points_name: str
-    eval_bot_y_offset: float
-    eval_bot_z_offset: float
-    eval_bot_pier_elevation: float
-    internal_placement_id: List[str]
-    internal_ref_placement_id: List[float]
-    internal_ref_station_offset: List[float]
-    internal_station_value: List[float]
-    internal_cross_section_ncs: List[float]
-    grp_offset: List[float]
+@dataclass
+class FoundationObject(LinearObject):
+    no: str = ""
+    class_name: str = ""
+    type: str = ""
+    description: str = ""
+    name: str = ""
+    inactive: str = ""
+    object_axis_name: str = ""
+    cross_section_type: str = ""
+    cross_section_name: str = ""
+    ref_placement_id: str = ""
+    ref_station_offset: float = 0.0
+    station_value: float = 0.0
+    cross_section_points_name: str = ""
+    foundation_ref_point_y_offset: float = 0.0
+    foundation_ref_point_x_offset: float = 0.0
+    foundation_level: float = 0.0
+    rotation_angle: float = 0.0
+    axis_name: str = ""
+    pier_object_name: List[str] = field(default_factory=list)
+    point1: str = ""
+    point2: str = ""
+    point3: str = ""
+    point4: str = ""
+    thickness: str = ""
+    grp: str = ""
+    cross_section_ncs2: int = 0
+    top_z_offset: float = 0.0
+    bot_z_offset: float = 0.0
+    top_x_offset: float = 0.0
+    top_y_offset: float = 0.0
+    pile_dir_angle: float = 0.0
+    pile_slope: float = 0.0
+    kx: float = 0.0
+    ky: float = 0.0
+    kz: float = 0.0
+    rx: float = 0.0
+    ry: float = 0.0
+    rz: float = 0.0
+    fixation: str = ""
+    eval_pier_object_name: str = ""
+    eval_station_value: float = 0.0
+    eval_bot_cross_section_points_name: str = ""
+    eval_bot_y_offset: float = 0.0
+    eval_bot_z_offset: float = 0.0
+    eval_bot_pier_elevation: float = 0.0
+    internal_placement_id: List[str] = field(default_factory=list)
+    internal_ref_placement_id: List[float] = field(default_factory=list)
+    internal_ref_station_offset: List[float] = field(default_factory=list)
+    internal_station_value: List[float] = field(default_factory=list)
+    internal_cross_section_ncs: List[float] = field(default_factory=list)
+    grp_offset: List[float] = field(default_factory=list)
     axis_variables: List[Dict] = field(default_factory=list)
 
 
@@ -109,3 +109,35 @@ class FoundationObject(BaseObject):
             "local_Z_mm": Y_mm,
             "loops_idx": loops_idx,
         }
+
+    def configure(self, 
+                  available_axes: Dict[str, Axis],
+                  available_cross_sections: Dict[int, CrossSection], 
+                  available_mainstations: Dict[str, List[MainStationRef]],
+                  axis_name: Optional[str] = None,
+                  cross_section_ncs: Optional[List[int]] = None,
+                  mainstation_name: Optional[str] = None) -> None:
+        """
+        Configure FoundationObject with available components.
+        Uses cross_section_ncs2 from foundation data.
+        """
+        from .main_station import MainStationRef  # Import here to avoid circular imports
+        
+        axis_name = axis_name or self.axis_name or getattr(self, 'object_axis_name', '')
+        mainstation_name = mainstation_name or axis_name
+        
+        # For foundation, use cross_section_ncs2
+        foundation_ncs = []
+        if hasattr(self, 'cross_section_ncs2') and self.cross_section_ncs2:
+            foundation_ncs.append(self.cross_section_ncs2)
+        
+        cross_section_ncs = cross_section_ncs or foundation_ncs
+        
+        # Call parent configure
+        super().configure(available_axes, available_cross_sections, available_mainstations,
+                         axis_name, cross_section_ncs, mainstation_name)
+        
+        # For foundation, create a single station step at the foundation location
+        if hasattr(self, 'station_value') and isinstance(self.station_value, (int, float)):
+            ncs = cross_section_ncs[0] if cross_section_ncs else 1
+            self.ncs_steps = [(float(self.station_value), ncs)]

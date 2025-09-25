@@ -86,6 +86,7 @@ class Axis:
         self.z_coords = z_mm[order]
 
         self.validate()
+        
 
     # ----- basic introspection -----
 
@@ -175,6 +176,14 @@ class Axis:
             T[1:-1] = P[2:] - P[:-2]
             T[0]    = P[1] - P[0]
             T[-1]   = P[-1] - P[-2]
+        elif len(P) == 1:
+            # Single station: find the closest segment in the axis
+            station = stations_mm[0]
+            idx = np.searchsorted(self.stations, station, sorter=np.argsort(self.stations))
+            idx = np.clip(idx, 1, len(self.stations) - 1)
+            T[0] = np.array([self.x_coords[idx] - self.x_coords[idx-1],
+                            self.y_coords[idx] - self.y_coords[idx-1],
+                            self.z_coords[idx] - self.z_coords[idx-1]])
         T = _normalize_rows(T)
         return P, T
 
@@ -234,6 +243,7 @@ class Axis:
         yz_points_mm: np.ndarray,
         x_offsets_mm: np.ndarray | None = None,
         rotation_deg: float | np.ndarray = 0.0,
+        plan_rotation_deg: float | np.ndarray = 0.0,
     ) -> np.ndarray:
         """
         Transform local (Y,Z) section points into world coordinates using
@@ -249,6 +259,10 @@ class Axis:
             Forward offsets along the tangent (local X) in mm. Default 0.
         rotation_deg : float or (N,) array
             Additional in-plane rotation (degrees) applied within each local YZ plane.
+        plan_rotation_deg : float or (N,) array
+            Additional rotation (degrees) around the global Z axis that affects only the XY-plane
+            orientation of the cross-section (yaw). This rotates the N/B frame around Z so that
+            section width orientation changes in plan without affecting vertical Z.
 
         Returns
         -------
@@ -278,8 +292,8 @@ class Axis:
         theta = np.deg2rad(rot)
         c, s = np.cos(theta), np.sin(theta)  # (N,)
 
-        y = yz[..., 0]                       # (N,M)
-        z = yz[..., 1]                       # (N,M)
+        y = yz[..., 1]                       # (N,M)  # cross section Y -> local Y
+        z = yz[..., 0]                       # (N,M)  # cross section X -> local Z 
         y_rot = c[:, None] * y - s[:, None] * z
         z_rot = s[:, None] * y + c[:, None] * z
 
@@ -290,12 +304,313 @@ class Axis:
         if x_offsets_mm.shape != (len(stations_mm),):
             raise ValueError("x_offsets_mm must be None or shape (N,) to match stations_mm.")
 
-        # Compose world coordinates
+        # Apply plan (yaw) rotation by rotating N and B around global Z axis only
+        plan = np.asarray(plan_rotation_deg, float)
+        if plan.ndim == 0:
+            plan = np.full(len(stations_mm), float(plan_rotation_deg), dtype=float)
+        phi = np.deg2rad(plan)
+        cp, sp = np.cos(phi), np.sin(phi)  # (N,)
+
+        # Build per-station rotation of XY components; Z components unchanged
+        # For each station i: [Nx', Ny'] = Rz(phi_i) * [Nx, Ny], same for B
+        N_xy = N[:, :2]  # (N,2)
+        B_xy = B[:, :2]
+        N_xy_rot = np.stack([
+            cp * N_xy[:, 0] - sp * N_xy[:, 1],
+            sp * N_xy[:, 0] + cp * N_xy[:, 1]
+        ], axis=1)
+        B_xy_rot = np.stack([
+            cp * B_xy[:, 0] - sp * B_xy[:, 1],
+            sp * B_xy[:, 0] + cp * B_xy[:, 1]
+        ], axis=1)
+
+        N_rot = np.stack([N_xy_rot[:, 0], N_xy_rot[:, 1], N[:, 2]], axis=1)
+        B_rot = np.stack([B_xy_rot[:, 0], B_xy_rot[:, 1], B[:, 2]], axis=1)
+
+        # Compose world coordinates with yaw-rotated N/B
         W = (P[:, None, :]                         # (N,1,3)
              + x_offsets_mm[:, None, None] * T[:, None, :]   # local X along T
-             + y_rot[:, :, None] * N[:, None, :]             # local Y along N
-             + z_rot[:, :, None] * B[:, None, :])            # local Z along B
+             + y_rot[:, :, None] * N_rot[:, None, :]         # local Y along (yaw-rotated) N
+             + z_rot[:, :, None] * B_rot[:, None, :])        # local Z along (yaw-rotated) B
         return W
+
+    # --- NEW symmetric middle-plane embedder ----------------------------------
+    def embed_section_points_world_symmetric(
+        self,
+        stations_mm: np.ndarray,
+        yz_points_mm: np.ndarray,
+        x_offsets_mm: np.ndarray | None = None,
+        rotation_deg: float | np.ndarray = 0.0,
+        plan_rotation_deg: float | np.ndarray = 0.0,
+        *,
+        frac_of_neighbor_gap: float = 0.5,
+        delta_min_mm: float = 100.0,
+        delta_max_mm: float = 2000.0,
+        up_hint: tuple[float, float, float] = (0.0, 0.0, 1.0),
+    ) -> np.ndarray:
+        """Symmetric ("middle-plane") embedding.
+
+        Tangent at each requested station s is estimated from P(s+δ)-P(s-δ) with
+        δ chosen as a fraction of the local neighbor spacing (clamped). This
+        produces a frame that "sees" both incoming and outgoing alignment.
+
+        rotation_deg : float | (N,)
+            In-plane twist (around local tangent) applied to local section (Y,Z) after yaw.
+        plan_rotation_deg : float | (N,)
+            Yaw (about global Z) applied to N,B before adding section points.
+        """
+        S = np.asarray(stations_mm, float)
+        if S.ndim != 1:
+            raise ValueError("stations_mm must be 1D array (mm)")
+
+        yz = np.asarray(yz_points_mm, float)
+        if yz.ndim == 2:
+            yz = np.broadcast_to(yz[None, :, :], (len(S),) + yz.shape)
+        if yz.ndim != 3 or yz.shape[2] != 2:
+            raise ValueError("yz_points_mm must be (M,2) or (N,M,2) with last dim=2")
+
+        if x_offsets_mm is None:
+            x_offsets_mm = np.zeros(len(S), float)
+        else:
+            x_offsets_mm = np.asarray(x_offsets_mm, float)
+            if x_offsets_mm.shape != (len(S),):
+                raise ValueError("x_offsets_mm must be shape (N,)")
+
+        rot = np.asarray(rotation_deg, float)
+        if rot.ndim == 0:
+            rot = np.full(len(S), float(rotation_deg), float)
+        theta = np.deg2rad(rot)
+        c_tw, s_tw = np.cos(theta), np.sin(theta)
+
+        plan = np.asarray(plan_rotation_deg, float)
+        if plan.ndim == 0:
+            plan = np.full(len(S), float(plan_rotation_deg), float)
+        phi = np.deg2rad(plan)
+        cp, sp = np.cos(phi), np.sin(phi)
+
+        # Fallback early for empty or trivial axis
+        if len(S) == 0:
+            return np.zeros((0, 0, 3), float)
+        # For very small sample counts (<=2) the symmetric derivative estimate
+        # can suffer degeneracy; fall back to standard embedding.
+        if len(S) <= 2:
+            return self.embed_section_points_world(
+                stations_mm,
+                yz_points_mm,
+                x_offsets_mm=x_offsets_mm,
+                rotation_deg=rotation_deg,
+                plan_rotation_deg=plan_rotation_deg,
+            )
+        prev_extrap = S[0] - (S[1] - S[0])
+        next_extrap = S[-1] + (S[-1] - S[-2])
+        gaps_left = S - np.r_[prev_extrap, S[:-1]]
+        gaps_right = np.r_[np.roll(S, -1)[0:-1], next_extrap] - S
+        delta = np.minimum(gaps_left, gaps_right) * float(frac_of_neighbor_gap)
+        delta = np.clip(delta, float(delta_min_mm), float(delta_max_mm))
+
+        Smin = float(self.stations[0]); Smax = float(self.stations[-1])
+        s_lo = np.maximum(S - delta, Smin)
+        s_hi = np.minimum(S + delta, Smax)
+        left_clamped = np.isclose(s_lo, Smin)
+        right_clamped = np.isclose(s_hi, Smax)
+        s_lo[right_clamped] = np.maximum(S[right_clamped] - 2.0 * delta[right_clamped], Smin)
+        s_hi[left_clamped]  = np.minimum(S[left_clamped] + 2.0 * delta[left_clamped], Smax)
+
+        def _pos(ss: np.ndarray) -> np.ndarray:
+            xs = np.interp(ss, self.stations, self.x_coords)
+            ys = np.interp(ss, self.stations, self.y_coords)
+            zs = np.interp(ss, self.stations, self.z_coords)
+            return np.stack([xs, ys, zs], axis=1)
+
+        P  = _pos(S)
+        Pm = _pos(s_lo)
+        Pp = _pos(s_hi)
+        T = Pp - Pm
+        Tn = np.linalg.norm(T, axis=1, keepdims=True) + 1e-12
+        T = T / Tn
+
+        up = np.asarray(up_hint, float)
+        up /= (np.linalg.norm(up) + 1e-12)
+        dot_up = (T @ up)
+        N = up[None, :] - T * dot_up[:, None]
+        small = (np.linalg.norm(N, axis=1) < 1e-9)
+        if small.any():
+            try:
+                up2 = np.array([0.0, 1.0, 0.0], float)
+                up2 /= (np.linalg.norm(up2) + 1e-12)
+                # (T[small] @ up2) yields shape (k,), expand to (k,1)
+                proj = (T[small] @ up2)
+                N[small] = up2[None, :] - T[small] * proj[:, None]
+            except Exception:
+                # Degenerate numeric situation: fall back to standard embedding
+                return self.embed_section_points_world(
+                    stations_mm,
+                    yz_points_mm,
+                    x_offsets_mm=x_offsets_mm,
+                    rotation_deg=rotation_deg,
+                    plan_rotation_deg=plan_rotation_deg,
+                )
+        N /= (np.linalg.norm(N, axis=1, keepdims=True) + 1e-12)
+        B = np.cross(T, N)
+        B /= (np.linalg.norm(B, axis=1, keepdims=True) + 1e-12)
+        for i in range(1, len(S)):
+            if (N[i] @ N[i-1]) < 0.0:
+                N[i] *= -1.0; B[i] *= -1.0
+
+        N_xy = N[:, :2]; B_xy = B[:, :2]
+        N_xy_rot = np.stack([
+            cp * N_xy[:, 0] - sp * N_xy[:, 1],
+            sp * N_xy[:, 0] + cp * N_xy[:, 1]
+        ], axis=1)
+        B_xy_rot = np.stack([
+            cp * B_xy[:, 0] - sp * B_xy[:, 1],
+            sp * B_xy[:, 0] + cp * B_xy[:, 1]
+        ], axis=1)
+        N_rot = np.stack([N_xy_rot[:, 0], N_xy_rot[:, 1], N[:, 2]], axis=1)
+        B_rot = np.stack([B_xy_rot[:, 0], B_xy_rot[:, 1], B[:, 2]], axis=1)
+
+        y_loc = yz[:, :, 1]
+        z_loc = yz[:, :, 0]
+        y_tw = c_tw[:, None] * y_loc - s_tw[:, None] * z_loc
+        z_tw = s_tw[:, None] * y_loc + c_tw[:, None] * z_loc
+
+        W = (P[:, None, :]
+             + x_offsets_mm[:, None, None] * T[:, None, :]
+             + y_tw[:, :, None] * N_rot[:, None, :]
+             + z_tw[:, :, None] * B_rot[:, None, :])
+        return W
+    
+    # --- NEW: frame composition utilities ------------------------------------
+    def frame_at_stations(
+        self,
+        stations_mm: np.ndarray,
+        *,
+        mode: str = "pt",  # "pt" or "symmetric"
+        plan_rotation_deg: float | np.ndarray = 0.0,
+        up_hint: tuple[float, float, float] = (0.0, 0.0, 1.0),
+        symmetric_frac_of_neighbor_gap: float = 0.5,
+        symmetric_delta_min_mm: float = 100.0,
+        symmetric_delta_max_mm: float = 2000.0,
+    ) -> dict:
+        """Return frame composition along the axis.
+
+        Parameters
+        ----------
+        stations_mm : (N,) array
+            Stations in mm.
+        mode : str
+            'pt' for parallel transport (minimal twist) frames, or 'symmetric' for
+            middle-plane tangent estimation P(s+δ)-P(s-δ).
+        plan_rotation_deg : float | (N,) array
+            Optional plan yaw (deg) applied to N,B around global Z (matches embedding logic).
+        up_hint : 3-tuple
+            Up hint for initial normal when mode='symmetric'.
+        symmetric_* : parameters controlling δ selection when mode='symmetric'.
+
+        Returns
+        -------
+        dict with keys:
+            stations_mm, P, T, N, B, N_yaw, B_yaw, plan_rotation_deg
+        All arrays shape (N,3) except stations_mm (N,), plan_rotation_deg (N,).
+        """
+        S = np.asarray(stations_mm, float)
+        if S.ndim != 1:
+            raise ValueError("stations_mm must be 1D")
+
+        # Prepare plan rotation array
+        plan = np.asarray(plan_rotation_deg, float)
+        if plan.ndim == 0:
+            plan = np.full(len(S), float(plan_rotation_deg), float)
+        phi = np.deg2rad(plan)
+        cp, sp = np.cos(phi), np.sin(phi)
+
+        if mode.lower() == "pt":
+            P, T = self._positions_and_tangents(S)
+            _, N, B = self.parallel_transport_frames(S)
+        elif mode.lower() == "symmetric":
+            if len(S) == 0:
+                return {"stations_mm": S, "P": np.zeros((0,3)), "T": np.zeros((0,3)), "N": np.zeros((0,3)), "B": np.zeros((0,3)), "N_yaw": np.zeros((0,3)), "B_yaw": np.zeros((0,3)), "plan_rotation_deg": plan}
+            # Build δ similar to embed_section_points_world_symmetric
+            if len(S) == 1:
+                gaps_left = gaps_right = np.full(1, 1000.0)
+            else:
+                prev_extrap = S[0] - (S[1] - S[0])
+                next_extrap = S[-1] + (S[-1] - S[-2])
+                gaps_left = S - np.r_[prev_extrap, S[:-1]]
+                gaps_right = np.r_[np.roll(S, -1)[0:-1], next_extrap] - S
+            delta = np.minimum(gaps_left, gaps_right) * float(symmetric_frac_of_neighbor_gap)
+            delta = np.clip(delta, float(symmetric_delta_min_mm), float(symmetric_delta_max_mm))
+            Smin = float(self.stations[0]); Smax = float(self.stations[-1])
+            s_lo = np.maximum(S - delta, Smin)
+            s_hi = np.minimum(S + delta, Smax)
+            left_clamped = np.isclose(s_lo, Smin)
+            right_clamped = np.isclose(s_hi, Smax)
+            s_lo[right_clamped] = np.maximum(S[right_clamped] - 2.0 * delta[right_clamped], Smin)
+            s_hi[left_clamped]  = np.minimum(S[left_clamped] + 2.0 * delta[left_clamped], Smax)
+
+            def _pos(ss: np.ndarray) -> np.ndarray:
+                xs = np.interp(ss, self.stations, self.x_coords)
+                ys = np.interp(ss, self.stations, self.y_coords)
+                zs = np.interp(ss, self.stations, self.z_coords)
+                return np.stack([xs, ys, zs], axis=1)
+
+            P  = _pos(S)
+            Pm = _pos(s_lo)
+            Pp = _pos(s_hi)
+            T = Pp - Pm
+            T /= (np.linalg.norm(T, axis=1, keepdims=True) + 1e-12)
+
+            up = np.asarray(up_hint, float)
+            up /= (np.linalg.norm(up) + 1e-12)
+            dot_up = (T @ up)
+            N = up[None, :] - T * dot_up[:, None]
+            small = (np.linalg.norm(N, axis=1) < 1e-9)
+            if small.any():
+                up2 = np.array([0.0, 1.0, 0.0], float)
+                up2 /= (np.linalg.norm(up2) + 1e-12)
+                N[small] = up2[None, :] - T[small] * ((T[small] @ up2))
+            N /= (np.linalg.norm(N, axis=1, keepdims=True) + 1e-12)
+            B = np.cross(T, N)
+            B /= (np.linalg.norm(B, axis=1, keepdims=True) + 1e-12)
+            for i in range(1, len(S)):
+                if (N[i] @ N[i-1]) < 0:
+                    N[i] *= -1; B[i] *= -1
+        else:
+            raise ValueError("mode must be 'pt' or 'symmetric'")
+
+        # Apply yaw
+        N_xy = N[:, :2]; B_xy = B[:, :2]
+        N_xy_rot = np.stack([
+            cp * N_xy[:, 0] - sp * N_xy[:, 1],
+            sp * N_xy[:, 0] + cp * N_xy[:, 1]
+        ], axis=1)
+        B_xy_rot = np.stack([
+            cp * B_xy[:, 0] - sp * B_xy[:, 1],
+            sp * B_xy[:, 0] + cp * B_xy[:, 1]
+        ], axis=1)
+        N_rot = np.stack([N_xy_rot[:, 0], N_xy_rot[:, 1], N[:, 2]], axis=1)
+        B_rot = np.stack([B_xy_rot[:, 0], B_xy_rot[:, 1], B[:, 2]], axis=1)
+
+        return {
+            "stations_mm": S,
+            "P": P,
+            "T": T,
+            "N": N,
+            "B": B,
+            "N_yaw": N_rot,
+            "B_yaw": B_rot,
+            "plan_rotation_deg": plan,
+            "mode": mode.lower(),
+        }
+
+    def frame_at_station(self, station_mm: float, **kw) -> dict:
+        """Convenience wrapper to return a single-station frame composition.
+        Returns dict with same keys as frame_at_stations but with (1,) arrays.
+        """
+        res = self.frame_at_stations(np.asarray([station_mm], float), **kw)
+        return {k: (v[0] if isinstance(v, np.ndarray) and v.shape[0] == 1 else v) for k,v in res.items()}
+    
+    
 
 
 # ---------- tiny self-test ----------

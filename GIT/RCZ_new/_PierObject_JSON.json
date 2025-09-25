@@ -1,0 +1,956 @@
+[
+  {
+    "No": "1",
+    "Class": "PierObject",
+    "Type": "Pier",
+    "Description": null,
+    "Name": "PierS1-1",
+    "InActive": null,
+    "ObjectAxisName": "PierS1-1",
+    "CrossSection@Type": "Pier",
+    "CrossSection@Name": "MASTER_Pier",
+    "Axis@Name": "RA",
+    "Ref-PlacementId": "S1",
+    "Ref-StationOffset": "0",
+    "StationValue": 5.65,
+    "Top-CrossSection_Points@Name": "B0BP",
+    "Top-Yoffset": 0,
+    "Top-Zoffset": 0,
+    "Top-CrossSection@Ncs": 3000,
+    "Bot-CrossSection_Points@Name": "B0BP",
+    "Bot-Yoffset": 0,
+    "Bot-Zoffset": 10,
+    "Bot-CrossSection@Ncs": 3000,
+    "Bot-PierElevation": null,
+    "RotationAngle": null,
+    "Grp": 310,
+    "Fixation": null,
+    "Internal-PlacementId": [
+    ],
+    "Internal_Ref-PlacementId": [
+    ],
+    "Internal_Ref-StationOffset": [
+    ],
+    "Internal-StationValue": [
+    ],
+    "Internal-CrossSection@Ncs": [
+      400
+    ],
+    "GrpOffset": [
+    ],
+    "AxisVariables": [
+      {
+        "VariableName": "CSHEIGHT",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0.65,
+          0.65
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "CSHEIGHT:Axis Variable"
+      },
+      {
+        "VariableName": "WIDH_1000",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          2.035,
+          2.035
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "WIDH_1000:Axis Variable"
+      },
+      {
+        "VariableName": "SLOP_1000",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0,
+          0
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "SLOP_1000:Axis Variable"
+      },
+      {
+        "VariableName": "INCL_1000",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          35.5550003051757,
+          35.5550003051757
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "INCL_1000:Axis Variable"
+      },
+      {
+        "VariableName": "WIDH_1050",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          2.035,
+          2.035
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "WIDH_1050:Axis Variable"
+      },
+      {
+        "VariableName": "SLOP_1050",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0,
+          0
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "SLOP_1050:Axis Variable"
+      },
+      {
+        "VariableName": "INCL_1050",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0,
+          0
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "INCL_1050:Axis Variable"
+      }
+    ]
+  },
+  {
+    "No": "2",
+    "Class": "PierObject",
+    "Type": "Pier",
+    "Description": null,
+    "Name": "PierS2-1",
+    "InActive": null,
+    "ObjectAxisName": "PierS2-1",
+    "CrossSection@Type": "Pier",
+    "CrossSection@Name": "MASTER_Pier",
+    "Axis@Name": "RA",
+    "Ref-PlacementId": "S2",
+    "Ref-StationOffset": "0",
+    "StationValue": 150.65,
+    "Top-CrossSection_Points@Name": "B1BP",
+    "Top-Yoffset": 0,
+    "Top-Zoffset": 0,
+    "Top-CrossSection@Ncs": 3001,
+    "Bot-CrossSection_Points@Name": "B1BP",
+    "Bot-Yoffset": 0,
+    "Bot-Zoffset": 20,
+    "Bot-CrossSection@Ncs": 3001,
+    "Bot-PierElevation": null,
+    "RotationAngle": null,
+    "Grp": 321,
+    "Fixation": null,
+    "Internal-PlacementId": [
+    ],
+    "Internal_Ref-PlacementId": [
+    ],
+    "Internal_Ref-StationOffset": [
+    ],
+    "Internal-StationValue": [
+    ],
+    "Internal-CrossSection@Ncs": [
+      400
+    ],
+    "GrpOffset": [
+    ],
+    "AxisVariables": [
+      {
+        "VariableName": "CSHEIGHT",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0.65,
+          0.65
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "CSHEIGHT:Axis Variable"
+      },
+      {
+        "VariableName": "WIDH_1000",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          2.035,
+          2.035
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "WIDH_1000:Axis Variable"
+      },
+      {
+        "VariableName": "SLOP_1000",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0,
+          0
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "SLOP_1000:Axis Variable"
+      },
+      {
+        "VariableName": "INCL_1000",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          35.5550003051757,
+          35.5550003051757
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "INCL_1000:Axis Variable"
+      },
+      {
+        "VariableName": "WIDH_1050",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          2.035,
+          2.035
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "WIDH_1050:Axis Variable"
+      },
+      {
+        "VariableName": "SLOP_1050",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0,
+          0
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "SLOP_1050:Axis Variable"
+      },
+      {
+        "VariableName": "INCL_1050",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0,
+          0
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "INCL_1050:Axis Variable"
+      }
+    ]
+  },
+  {
+    "No": "3",
+    "Class": "PierObject",
+    "Type": "Pier",
+    "Description": null,
+    "Name": "PierS2-2",
+    "InActive": null,
+    "ObjectAxisName": "PierS2-2",
+    "CrossSection@Type": "Pier",
+    "CrossSection@Name": "MASTER_Pier",
+    "Axis@Name": "RA",
+    "Ref-PlacementId": "S2",
+    "Ref-StationOffset": "0",
+    "StationValue": 150.65,
+    "Top-CrossSection_Points@Name": "B2BP",
+    "Top-Yoffset": 0,
+    "Top-Zoffset": 0,
+    "Top-CrossSection@Ncs": 3001,
+    "Bot-CrossSection_Points@Name": "B2BP",
+    "Bot-Yoffset": 0,
+    "Bot-Zoffset": 20,
+    "Bot-CrossSection@Ncs": 3001,
+    "Bot-PierElevation": null,
+    "RotationAngle": null,
+    "Grp": 322,
+    "Fixation": null,
+    "Internal-PlacementId": [
+    ],
+    "Internal_Ref-PlacementId": [
+    ],
+    "Internal_Ref-StationOffset": [
+    ],
+    "Internal-StationValue": [
+    ],
+    "Internal-CrossSection@Ncs": [
+      400
+    ],
+    "GrpOffset": [
+    ],
+    "AxisVariables": [
+      {
+        "VariableName": "CSHEIGHT",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0.65,
+          0.65
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "CSHEIGHT:Axis Variable"
+      },
+      {
+        "VariableName": "WIDH_1000",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          2.035,
+          2.035
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "WIDH_1000:Axis Variable"
+      },
+      {
+        "VariableName": "SLOP_1000",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0,
+          0
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "SLOP_1000:Axis Variable"
+      },
+      {
+        "VariableName": "INCL_1000",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          35.5550003051757,
+          35.5550003051757
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "INCL_1000:Axis Variable"
+      },
+      {
+        "VariableName": "WIDH_1050",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          2.035,
+          2.035
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "WIDH_1050:Axis Variable"
+      },
+      {
+        "VariableName": "SLOP_1050",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0,
+          0
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "SLOP_1050:Axis Variable"
+      },
+      {
+        "VariableName": "INCL_1050",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0,
+          0
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "INCL_1050:Axis Variable"
+      }
+    ]
+  },
+  {
+    "No": "4",
+    "Class": "PierObject",
+    "Type": "Pier",
+    "Description": null,
+    "Name": "PierS3-1",
+    "InActive": null,
+    "ObjectAxisName": "PierS3-1",
+    "CrossSection@Type": "Pier",
+    "CrossSection@Name": "MASTER_Pier",
+    "Axis@Name": "RA",
+    "Ref-PlacementId": "S3",
+    "Ref-StationOffset": "0",
+    "StationValue": 305.65,
+    "Top-CrossSection_Points@Name": "B0BP",
+    "Top-Yoffset": 0,
+    "Top-Zoffset": 0,
+    "Top-CrossSection@Ncs": 3001,
+    "Bot-CrossSection_Points@Name": "B0BP",
+    "Bot-Yoffset": 0,
+    "Bot-Zoffset": 10,
+    "Bot-CrossSection@Ncs": 3001,
+    "Bot-PierElevation": null,
+    "RotationAngle": null,
+    "Grp": 331,
+    "Fixation": null,
+    "Internal-PlacementId": [
+    ],
+    "Internal_Ref-PlacementId": [
+    ],
+    "Internal_Ref-StationOffset": [
+    ],
+    "Internal-StationValue": [
+    ],
+    "Internal-CrossSection@Ncs": [
+      400
+    ],
+    "GrpOffset": [
+    ],
+    "AxisVariables": [
+      {
+        "VariableName": "CSHEIGHT",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0.65,
+          0.65
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "CSHEIGHT:Axis Variable"
+      },
+      {
+        "VariableName": "WIDH_1000",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          2.035,
+          2.035
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "WIDH_1000:Axis Variable"
+      },
+      {
+        "VariableName": "SLOP_1000",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0,
+          0
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "SLOP_1000:Axis Variable"
+      },
+      {
+        "VariableName": "INCL_1000",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          35.5550003051757,
+          35.5550003051757
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "INCL_1000:Axis Variable"
+      },
+      {
+        "VariableName": "WIDH_1050",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          2.035,
+          2.035
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "WIDH_1050:Axis Variable"
+      },
+      {
+        "VariableName": "SLOP_1050",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0,
+          0
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "SLOP_1050:Axis Variable"
+      },
+      {
+        "VariableName": "INCL_1050",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0,
+          0
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "INCL_1050:Axis Variable"
+      }
+    ]
+  },
+  {
+    "No": "5",
+    "Class": "PierObject",
+    "Type": "Pier",
+    "Description": null,
+    "Name": "PierS4-1",
+    "InActive": null,
+    "ObjectAxisName": "PierS4-1",
+    "CrossSection@Type": "Pier",
+    "CrossSection@Name": "MASTER_Pier",
+    "Axis@Name": "RA",
+    "Ref-PlacementId": "S4",
+    "Ref-StationOffset": "0",
+    "StationValue": 335.65,
+    "Top-CrossSection_Points@Name": "B0BP",
+    "Top-Yoffset": 0,
+    "Top-Zoffset": 0,
+    "Top-CrossSection@Ncs": 3001,
+    "Bot-CrossSection_Points@Name": "B0BP",
+    "Bot-Yoffset": 0,
+    "Bot-Zoffset": 10,
+    "Bot-CrossSection@Ncs": 3001,
+    "Bot-PierElevation": null,
+    "RotationAngle": null,
+    "Grp": 341,
+    "Fixation": null,
+    "Internal-PlacementId": [
+    ],
+    "Internal_Ref-PlacementId": [
+    ],
+    "Internal_Ref-StationOffset": [
+    ],
+    "Internal-StationValue": [
+    ],
+    "Internal-CrossSection@Ncs": [
+      400
+    ],
+    "GrpOffset": [
+    ],
+    "AxisVariables": [
+      {
+        "VariableName": "CSHEIGHT",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0.65,
+          0.65
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "CSHEIGHT:Axis Variable"
+      },
+      {
+        "VariableName": "WIDH_1000",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          2.035,
+          2.035
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "WIDH_1000:Axis Variable"
+      },
+      {
+        "VariableName": "SLOP_1000",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0,
+          0
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "SLOP_1000:Axis Variable"
+      },
+      {
+        "VariableName": "INCL_1000",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          35.5550003051757,
+          35.5550003051757
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "INCL_1000:Axis Variable"
+      },
+      {
+        "VariableName": "WIDH_1050",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          2.035,
+          2.035
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "WIDH_1050:Axis Variable"
+      },
+      {
+        "VariableName": "SLOP_1050",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0,
+          0
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "SLOP_1050:Axis Variable"
+      },
+      {
+        "VariableName": "INCL_1050",
+        "StationValue": [
+          0,
+          1
+        ],
+        "VariableValues": [
+          0,
+          0
+        ],
+        "VariableIntTypes": [
+          "#",
+          "#"
+        ],
+        "VariableDescription": "INCL_1050:Axis Variable"
+      }
+    ]
+  },
+  {
+    "No": null,
+    "Class": "ClassInfo",
+    "Type": "PackingSize",
+    "Description": "When creating JSON.json files you can choose whether each column vaues maps to a single value or a list of values",
+    "Name": "PierObject",
+    "InActive": null,
+    "ObjectAxisName": null,
+    "CrossSection@Type": null,
+    "CrossSection@Name": null,
+    "Axis@Name": null,
+    "Ref-PlacementId": null,
+    "Ref-StationOffset": null,
+    "StationValue": null,
+    "Top-CrossSection_Points@Name": null,
+    "Top-Yoffset": null,
+    "Top-Zoffset": null,
+    "Top-CrossSection@Ncs": null,
+    "Bot-CrossSection_Points@Name": null,
+    "Bot-Yoffset": null,
+    "Bot-Zoffset": null,
+    "Bot-CrossSection@Ncs": null,
+    "Bot-PierElevation": null,
+    "RotationAngle": null,
+    "Grp": null,
+    "Fixation": null,
+    "Internal-PlacementId": [
+      "[many]"
+    ],
+    "Internal_Ref-PlacementId": [
+      "[many]"
+    ],
+    "Internal_Ref-StationOffset": [
+      0
+    ],
+    "Internal-StationValue": [
+      0
+    ],
+    "Internal-CrossSection@Ncs": [
+      0
+    ],
+    "GrpOffset": [
+      0
+    ],
+    "AxisVariables": {
+    }
+  },
+  {
+    "No": null,
+    "Class": "ClassInfo",
+    "Type": "PackingType",
+    "Description": "When creating JSON.json files you can choose the type for each column values",
+    "Name": "PierObject",
+    "InActive": null,
+    "ObjectAxisName": "[Str]",
+    "CrossSection@Type": "[Str]",
+    "CrossSection@Name": "[Str]",
+    "Axis@Name": "[Str]",
+    "Ref-PlacementId": "[Str]",
+    "Ref-StationOffset": "[Str]",
+    "StationValue": 0,
+    "Top-CrossSection_Points@Name": "[Str]",
+    "Top-Yoffset": 0,
+    "Top-Zoffset": 0,
+    "Top-CrossSection@Ncs": 0,
+    "Bot-CrossSection_Points@Name": "[Str]",
+    "Bot-Yoffset": 0,
+    "Bot-Zoffset": 0,
+    "Bot-CrossSection@Ncs": 0,
+    "Bot-PierElevation": 0,
+    "RotationAngle": 0,
+    "Grp": 0,
+    "Fixation": "[Str]",
+    "Internal-PlacementId": [
+      "[Str]"
+    ],
+    "Internal_Ref-PlacementId": [
+      "[Str]"
+    ],
+    "Internal_Ref-StationOffset": [
+      0
+    ],
+    "Internal-StationValue": [
+      0
+    ],
+    "Internal-CrossSection@Ncs": [
+      0
+    ],
+    "GrpOffset": [
+      0
+    ],
+    "AxisVariables": {
+    }
+  },
+  {
+    "No": null,
+    "Class": "ClassInfo",
+    "Type": "Workflow",
+    "Description": "When creating JSON.json files you can mark some specific columns which are only relevant for given workflow",
+    "Name": "PierObject",
+    "InActive": null,
+    "ObjectAxisName": null,
+    "CrossSection@Type": "[DK]",
+    "CrossSection@Name": "[DK]",
+    "Axis@Name": null,
+    "Ref-PlacementId": null,
+    "Ref-StationOffset": null,
+    "StationValue": null,
+    "Top-CrossSection_Points@Name": null,
+    "Top-Yoffset": null,
+    "Top-Zoffset": null,
+    "Top-CrossSection@Ncs": 0,
+    "Bot-CrossSection_Points@Name": null,
+    "Bot-Yoffset": null,
+    "Bot-Zoffset": null,
+    "Bot-CrossSection@Ncs": 0,
+    "Bot-PierElevation": null,
+    "RotationAngle": 0,
+    "Grp": null,
+    "Fixation": null,
+    "Internal-PlacementId": [
+      "[DK]"
+    ],
+    "Internal_Ref-PlacementId": [
+      "[DK]"
+    ],
+    "Internal_Ref-StationOffset": [
+      0
+    ],
+    "Internal-StationValue": [
+      0
+    ],
+    "Internal-CrossSection@Ncs": [
+      0
+    ],
+    "GrpOffset": [
+      0
+    ],
+    "AxisVariables": {
+    }
+  },
+  {
+    "No": null,
+    "Class": "ClassInfo",
+    "Type": "Unit",
+    "Description": null,
+    "Name": "PierObject",
+    "InActive": null,
+    "ObjectAxisName": null,
+    "CrossSection@Type": null,
+    "CrossSection@Name": null,
+    "Axis@Name": null,
+    "Ref-PlacementId": null,
+    "Ref-StationOffset": "[m]",
+    "StationValue": 0,
+    "Top-CrossSection_Points@Name": null,
+    "Top-Yoffset": 0,
+    "Top-Zoffset": 0,
+    "Top-CrossSection@Ncs": null,
+    "Bot-CrossSection_Points@Name": null,
+    "Bot-Yoffset": 0,
+    "Bot-Zoffset": 0,
+    "Bot-CrossSection@Ncs": null,
+    "Bot-PierElevation": 0,
+    "RotationAngle": 0,
+    "Grp": null,
+    "Fixation": null,
+    "Internal-PlacementId": [
+    ],
+    "Internal_Ref-PlacementId": [
+    ],
+    "Internal_Ref-StationOffset": [
+      0
+    ],
+    "Internal-StationValue": [
+      0
+    ],
+    "Internal-CrossSection@Ncs": [
+    ],
+    "GrpOffset": [
+    ],
+    "AxisVariables": {
+    }
+  }
+]

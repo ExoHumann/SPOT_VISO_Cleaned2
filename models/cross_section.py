@@ -96,19 +96,40 @@ def _loops_idx(section_json: Dict, id_to_col: Dict[str,int]) -> List[np.ndarray]
     return out
 
 
-def _fix_var_units_inplace(arrs: Dict[str, np.ndarray], defaults_mm: Dict[str, float]) -> None:
-    # Heuristic: deck axis vars are mostly meters → scale ×1000 unless default suggests otherwise
+_CS_DEBUG_UNITS = False  # set True manually to print variable scaling diagnostics
+
+def _fix_var_units_inplace(arrs: Dict[str, np.ndarray], defaults_mm: Dict[str, float], *, force_scale: Optional[float] = None, debug: bool = False) -> None:
+    """Heuristically scale provided variable arrays to millimetres.
+
+    Current rule:
+      - Assume incoming values are meters unless matching defaults suggests they
+        are already millimetres.
+      - Evaluate both scale candidates {1, 1000}; choose which brings median
+        absolute magnitude closest (relative) to default value.
+      - Optional force_scale overrides heuristic.
+
+    debug True (or global _CS_DEBUG_UNITS) prints a line per variable with
+    median, default, chosen scale and sample first value.
+    """
+    dbg = debug or _CS_DEBUG_UNITS
     for name, a in list(arrs.items()):
         a = np.asarray(a, float)
-        if a.size == 0: continue
+        if a.size == 0:
+            continue
         def_v = defaults_mm.get(name)
-        scale = 1000.0
-        if def_v is not None and np.isfinite(def_v):
-            med = float(np.nanmedian(np.abs(a))) or 0.0
-            cands = (1.0, 1000.0)
-            costs = [abs(med*s - def_v)/max(1.0, abs(def_v)) for s in cands]
-            scale = cands[int(np.argmin(costs))]
-        arrs[name] = a * scale
+        if force_scale is not None:
+            chosen = force_scale
+        else:
+            chosen = 1000.0
+            if def_v is not None and np.isfinite(def_v):
+                med = float(np.nanmedian(np.abs(a))) or 0.0
+                cands = (1.0, 1000.0)
+                costs = [abs(med * s - def_v) / max(1.0, abs(def_v)) for s in cands]
+                chosen = cands[int(np.argmin(costs))]
+        if dbg:
+            med = float(np.nanmedian(np.abs(a))) if a.size else float('nan')
+            print(f"[CrossSection:units] var={name} med_in={med:.4g} def_mm={def_v if def_v is not None else 'NA'} scale->{chosen} example_in={a[0]:.4g} example_out={(a[0]*chosen) if a.size else float('nan'):.4g}")
+        arrs[name] = a * chosen
 
 
 @dataclass
@@ -138,7 +159,9 @@ class CrossSection:
         self,
         var_arrays_all: Dict[str, np.ndarray],
         *,
-        negate_x: bool = True
+        negate_x: bool = True,
+        debug_units: bool = False,
+        force_var_scale: Optional[float] = None,
     ) -> Tuple[List[str], np.ndarray, np.ndarray, List[np.ndarray]]:
         """
         Vectorized evaluation for all stations.
@@ -147,7 +170,8 @@ class CrossSection:
         points = _collect_points(self.data)
         order = _topo_order(points)
         id_to_idx = {pid: j for j, pid in enumerate(order)}
-        S = len(next(iter(var_arrays_all.values()))) if var_arrays_all else 0
+        # If no variable arrays provided, still produce a single slice using defaults.
+        S = len(next(iter(var_arrays_all.values()))) if var_arrays_all else 1
         N = len(order)
         X = np.full((S, N), np.nan, float)
         Y = np.full((S, N), np.nan, float)
@@ -160,8 +184,8 @@ class CrossSection:
         for k in used:
             if k not in vars_raw:
                 vars_raw[k] = np.full(S, float(defaults_mm.get(k, 0.0)), float)
-
-        _fix_var_units_inplace(vars_raw, defaults_mm)
+        # scale variables to mm (heuristic or forced)
+        _fix_var_units_inplace(vars_raw, defaults_mm, force_scale=force_var_scale, debug=debug_units)
 
         env = {**_VECTOR_FUNCS, **vars_raw}
         compiled = {pid: (_compile_expr((points[pid].get("Coord") or ["0","0"])[0]),
@@ -181,26 +205,134 @@ class CrossSection:
                 yv = np.full(S, np.nan, float)
             X[:, j] = xv; Y[:, j] = yv
 
-        # Euclidean references
+        # Euclidean references (relative additions)
         for j, pid in enumerate(order):
             refs = points[pid].get("Reference") or []
             if len(refs) == 1:
                 k = id_to_idx.get(refs[0])
-                if k is not None: X[:, j] += X[:, k]; Y[:, j] += Y[:, k]
+                if k is not None:
+                    X[:, j] += X[:, k]
+                    Y[:, j] += Y[:, k]
             elif len(refs) >= 2:
                 kx = id_to_idx.get(refs[0]); ky = id_to_idx.get(refs[1])
-                if kx is not None: X[:, j] += X[:, kx]
-                if ky is not None: Y[:, j] += Y[:, ky]
+                if kx is not None:
+                    X[:, j] += X[:, kx]
+                if ky is not None:
+                    Y[:, j] += Y[:, ky]
 
-        if negate_x: 
-            X = -X
+        if negate_x:
+            Y = -Y
         loops = _loops_idx(self.data, id_to_idx)
 
         # 🔹 remember for callers (plotter / LinearObject)
         self.last_ids = order
         self.last_loops_idx = loops
 
+        if debug_units:
+            # report bounding box per first station and overall (useful to see scale issues)
+            try:
+                first_x = X[0]; first_y = Y[0]
+                fx_min, fx_max = np.nanmin(first_x), np.nanmax(first_x)
+                fy_min, fy_max = np.nanmin(first_y), np.nanmax(first_y)
+                span_x = fx_max - fx_min; span_y = fy_max - fy_min
+                print(f"[CrossSection:bb:first] Xmm=[{fx_min:.3f},{fx_max:.3f}] span={span_x:.3f}mm ({span_x/1000:.3f}m)  Ymm=[{fy_min:.3f},{fy_max:.3f}] span={span_y:.3f}mm ({span_y/1000:.3f}m)")
+                gx_min, gx_max = np.nanmin(X), np.nanmax(X)
+                gy_min, gy_max = np.nanmin(Y), np.nanmax(Y)
+                gspan_x = gx_max - gx_min; gspan_y = gy_max - gy_min
+                print(f"[CrossSection:bb:global] Xmm=[{gx_min:.3f},{gx_max:.3f}] span={gspan_x:.3f}mm ({gspan_x/1000:.3f}m)  Ymm=[{gy_min:.3f},{gy_max:.3f}] span={gspan_y:.3f}mm ({gspan_y/1000:.3f}m)")
+            except Exception:
+                pass
+
         return order, X, Y, loops
+
+    # ------------------------------------------------------------------
+    # Legacy compatibility wrappers (expected by DeckObject / PierObject)
+    # ------------------------------------------------------------------
+    def compute_local_points(
+        self,
+        *,
+        axis_var_results: List[Dict[str, float]] | None,
+        negate_x: bool = True,
+        debug_units: bool = False,
+        force_var_scale: Optional[float] = None,
+    ) -> Tuple[List[str], np.ndarray, np.ndarray, List[np.ndarray]]:
+        """Return (ids, X_mm, Y_mm, loops_idx) for all provided station variable rows.
+
+        axis_var_results : list of dicts (one per station) mapping variable -> value.
+        Values may be in meters; unit heuristic in evaluate() rescales to mm when
+        defaults suggest (see _fix_var_units_inplace).
+        """
+        axis_var_results = axis_var_results or [{}]  # at least one slice so defaults apply
+
+        # Build per-variable arrays across stations
+        var_arrays: Dict[str, List[float]] = {}
+        for row in axis_var_results:
+            if not isinstance(row, dict):
+                continue
+            for k, v in row.items():
+                try:
+                    var_arrays.setdefault(str(k), []).append(float(v))
+                except Exception:
+                    pass
+        # Convert lists to np arrays
+        var_arrays_np = {k: np.asarray(v, float) for k, v in var_arrays.items()}
+        return self.evaluate(var_arrays_np, negate_x=negate_x, debug_units=debug_units, force_var_scale=force_var_scale)
+
+    def compute_embedded_points(
+        self,
+        *,
+        axis: 'Axis',
+        axis_var_results: List[Dict[str, float]] | None,
+        stations_m: List[float] | None,
+        twist_deg: float = 0.0,
+        negate_x: bool = True,
+        plan_rotation_deg: float = 0.0,
+        frame_mode: str = "pt",  # future extension ("pt" vs "symmetric")
+        debug_units: bool = False,
+        force_var_scale: Optional[float] = None,
+    ) -> Tuple[List[str], np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[np.ndarray]]:
+        """Vectorized local evaluation + world embedding.
+
+        Returns (ids, stations_mm, world_points_mm, X_mm, Y_mm, loops_idx)
+        matching the historical interface expected by DeckObject.
+        """
+        if axis is None:
+            return [], np.zeros((0,), float), np.zeros((0, 0, 3), float), np.zeros((0, 0), float), np.zeros((0, 0), float), []
+
+        stations_m = stations_m or []
+        if len(stations_m) == 0:
+            return [], np.zeros((0,), float), np.zeros((0, 0, 3), float), np.zeros((0, 0), float), np.zeros((0, 0), float), []
+
+        ids, X_mm, Y_mm, loops_idx = self.compute_local_points(
+            axis_var_results=axis_var_results,
+            negate_x=negate_x,
+            debug_units=debug_units,
+            force_var_scale=force_var_scale,
+        )
+        if len(ids) == 0:
+            Smm = np.asarray(stations_m, float) * 1000.0
+            return [], Smm, np.zeros((len(Smm), 0, 3), float), X_mm, Y_mm, []
+
+        stations_mm = np.asarray(stations_m, float) * 1000.0
+        # Local YZ stack shape (S, N, 2) -> embedder expects (N_stations, N_points, 2)
+        local_yz = np.dstack([X_mm, Y_mm])  # (S, N, 2)
+
+        if frame_mode == "symmetric" and hasattr(axis, 'embed_section_points_world_symmetric'):
+            P_mm = axis.embed_section_points_world_symmetric(
+                stations_mm,
+                yz_points_mm=local_yz,
+                rotation_deg=float(twist_deg or 0.0),
+                plan_rotation_deg=float(plan_rotation_deg or 0.0),
+            )
+        else:
+            P_mm = axis.embed_section_points_world(
+                stations_mm,
+                yz_points_mm=local_yz,
+                rotation_deg=float(twist_deg or 0.0),
+                plan_rotation_deg=float(plan_rotation_deg or 0.0),
+            )
+
+        return ids, stations_mm, P_mm, X_mm, Y_mm, loops_idx
         
 # # ----------------------------------------------------------------------------- #
 # # Minimal test (runs if you execute this file directly)

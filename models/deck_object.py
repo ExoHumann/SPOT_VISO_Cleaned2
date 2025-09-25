@@ -2,10 +2,11 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Dict, List, Optional
 import numpy as np
-from .base import BaseObject
+from .linear_object import LinearObject
 from .axis import Axis
 from .cross_section import CrossSection
 from .axis_variable import AxisVariable
+from .main_station import MainStationRef
 def _resolve_section_key(ctx, key):
     if key is None: return None
     if isinstance(key, str):
@@ -47,8 +48,8 @@ def _sections_for_stations(ctx, stations_m, *, schedule=None, names=None, ncs_li
     return [None]*S
 
 
-@dataclass(kw_only=True)
-class DeckObject(BaseObject):
+@dataclass
+class DeckObject(LinearObject):
     no: str = ""
     class_name: str = ""
     type: str = ""
@@ -239,3 +240,26 @@ class DeckObject(BaseObject):
             "local_Z_mm": Y_mm,
             "loops_idx": loops_idx,
         }
+
+    def configure(self, 
+                  available_axes: Dict[str, Axis],
+                  available_cross_sections: Dict[int, CrossSection], 
+                  available_mainstations: Dict[str, List[MainStationRef]],
+                  axis_name: Optional[str] = None,
+                  cross_section_ncs: Optional[List[int]] = None,
+                  mainstation_name: Optional[str] = None) -> None:
+        """
+        Configure DeckObject with available components.
+        Uses cross_section_ncs from deck data, or provided override.
+        """
+        axis_name = axis_name or self.axis_name
+        mainstation_name = mainstation_name or axis_name
+        cross_section_ncs = cross_section_ncs or getattr(self, 'cross_section_ncs', [])
+        
+        # Call parent configure with deck-specific cross section NCS
+        super().configure(available_axes, available_cross_sections, available_mainstations,
+                         axis_name, cross_section_ncs, mainstation_name)
+        
+        # Set up NCS steps for deck (station -> NCS mapping)
+        if hasattr(self, 'station_value') and hasattr(self, 'cross_section_ncs') and self.station_value and self.cross_section_ncs:
+            self.ncs_steps = list(zip(self.station_value, self.cross_section_ncs))
