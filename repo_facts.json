@@ -1,0 +1,102 @@
+{
+  "languages": {
+    "Python": "12.6%", 
+    "JavaScript": "1.3%",
+    "JSON": "58.9%",
+    "Markdown": "2.3%",
+    "Other": "24.9%"
+  },
+  "python_version": "3.12.3",
+  "entry_points": [
+    "main.py", 
+    "run_linear.py", 
+    "run_deck.py", 
+    "run_pier.py", 
+    "run_foundation.py",
+    "demo_flexibility.py"
+  ],
+  "top_modules": [
+    "models/axis", 
+    "models/cross_section", 
+    "models/deck_object",
+    "models/pier_object", 
+    "models/foundation_object",
+    "models/viso_context",
+    "spot_loader", 
+    "SPOT_Filters"
+  ],
+  "cli_commands": [
+    "python run_linear.py --obj-type DeckObject",
+    "python run_deck.py --out deck.html", 
+    "python run_pier.py --plan-rotation 30",
+    "python run_foundation.py --out foundation.html",
+    "python demo_flexibility.py",
+    "python test_data_flow.py"
+  ],
+  "missing_cli_commands": [
+    "spotviso check",
+    "spotviso test -m smoke", 
+    "spotviso test-all",
+    "spotviso viz --case <id>"
+  ],
+  "ci_workflows": [],
+  "perf_hotspots": [
+    "models/cross_section.py:compute_embedded_points",
+    "models/axis.py:embed_section_points_world", 
+    "models/axis_variable.py:evaluate",
+    "models/axis.py:parallel_transport_frames"
+  ],
+  "key_models": [
+    "Axis", 
+    "CrossSection", 
+    "DeckObject", 
+    "PierObject", 
+    "FoundationObject",
+    "VisoContext",
+    "SpotLoader"
+  ],
+  "data_sources": [
+    "GIT/MAIN",
+    "GIT/RCZ_new1", 
+    "GIT/RCZ_new",
+    "MASTER_SECTION"
+  ],
+  "key_algorithms": [
+    "Station interpolation via binary search",
+    "Parallel transport frame calculation", 
+    "Cross-section embedding with rotation",
+    "Parametric expression evaluation",
+    "World coordinate transformation"
+  ],
+  "dependencies": {
+    "numpy": "2.3.3",
+    "plotly": "6.3.0", 
+    "scipy": "1.16.2",
+    "jinja2": "3.1.6",
+    "matplotlib": "3.10.6"
+  },
+  "test_infrastructure": {
+    "framework": "Manual scripts (no pytest)",
+    "coverage": "~30%",
+    "test_files": [
+      "test_data_flow.py",
+      "test_rotation_math.py", 
+      "test_rotation_comprehensive.py",
+      "demo_flexibility.py"
+    ]
+  },
+  "known_issues": [
+    "Broadcasting error in embed_section_points_world_symmetric",
+    "Hardcoded Windows paths in SPOT_Filters.py", 
+    "Missing pytest framework",
+    "No CI/CD pipeline",
+    "Performance bottlenecks in nested loops"
+  ],
+  "mcp_candidates": [
+    "run_tests",
+    "generate_plot", 
+    "validate_geometry",
+    "read_geometry_doc",
+    "find_data"
+  ]
+}
