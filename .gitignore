@@ -4,7 +4,17 @@ __pycache__/
 *.pyo
 **/__pycache__/
 
+# Ignore virtual environment
+.venv/
+venv/
+env/
+
 # Ignore html files
 *.html
 models/cross_section - Copy.py
 models/cross_sectionold.py
+
+# Ignore temporary files
+*.tmp
+tmp/
+.pytest_cache/
