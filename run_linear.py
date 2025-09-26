@@ -15,58 +15,29 @@ from models.main_station import load_mainstations_from_rows
 from models.mapping import mapping
 from main import get_plot_traces_matrix  # your existing plotter
 
+# Import the new streamlined builder
+from linear_object_builder import LinearObjectBuilder
+
 def main(axis_json, cross_json, obj_json, mainstation_json, section_json, out_html,
          *, obj_type="DeckObject", max_stations=400, loop_stride=20, long_stride=50, twist_deg=0.0, plan_rotation_deg: float = 0.0):
 
-    axis_rows = json.load(open(axis_json, "r", encoding="utf-8"))
-    cross_rows = json.load(open(cross_json, "r", encoding="utf-8"))
-    obj_rows  = json.load(open(obj_json,  "r", encoding="utf-8"))
-    ms_rows    = json.load(open(mainstation_json, "r", encoding="utf-8"))
-
-    obj_row = next(r for r in obj_rows if r.get("Class") == obj_type)
-
-    # Load all available components
-    available_axes = {}
-    for axis_row in axis_rows:
-        if axis_row.get("Class") == "Axis":
-            axis_name = axis_row.get("Name", "")
-            if axis_name:
-                available_axes[axis_name] = load_axis_from_rows(axis_rows, axis_name)
-
-    available_cross_sections = {}
-    by_ncs = index_cross_sections_by_ncs(cross_rows)
-    for ncs in by_ncs.keys():
-        available_cross_sections[ncs] = load_section_for_ncs(ncs, by_ncs, section_json)
-
-    available_mainstations = {}
-    for axis_name in available_axes.keys():
-        available_mainstations[axis_name] = load_mainstations_from_rows(ms_rows, axis_name=axis_name)
-
-    # Determine object class and mapping based on obj_type
-    if obj_type == "DeckObject":
-        obj_class = DeckObject
-        obj_mapping = mapping["DeckObject"]
-    elif obj_type == "PierObject":
-        obj_class = PierObject
-        obj_mapping = mapping["PierObject"]
-    elif obj_type == "FoundationObject":
-        obj_class = FoundationObject
-        obj_mapping = mapping["FoundationObject"]
-    else:
-        raise ValueError(f"Unsupported object type: {obj_type}")
-
-    # Create object from JSON data using mapping
-    obj = from_dict(obj_class, obj_row, mapping)
+    # Use the streamlined LinearObjectBuilder for simplified workflow
+    builder = LinearObjectBuilder(verbose=True)
     
-    # Configure object with available components (let the object decide what to use)
-    obj.configure(available_axes, available_cross_sections, available_mainstations)
-
-    res = obj.build(
+    # Load data from files  
+    builder.load_from_files(axis_json, cross_json, obj_json, mainstation_json, section_json)
+    
+    # Create and configure object
+    obj = builder.create_object(obj_type)
+    
+    # Build geometry using the builder's standardized method
+    res = builder.build_geometry(
+        obj,
         stations_m=None,
-        twist_deg=float(twist_deg),
+        twist_deg=float(twist_deg), 
         plan_rotation_deg=float(plan_rotation_deg),
         station_cap=max_stations,
-        frame_mode= "symmetric"
+        frame_mode="symmetric"
     )
     
 
