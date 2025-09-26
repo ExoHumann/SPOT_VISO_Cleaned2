@@ -2,6 +2,8 @@
 
 Loads a single axis, cross-section, pier object row set and produces a 3D HTML plot.
 Assumes JSON inputs already point to the desired data (no auto-discovery, no deck, no overlays).
+
+Updated to use the streamlined LinearObjectBuilder workflow.
 """
 from __future__ import annotations
 import json, argparse, os, plotly.graph_objects as go, numpy as np
@@ -10,46 +12,69 @@ from models.main_station import load_mainstations_from_rows
 from models.pier_object import PierObject
 from models.plotter import Plotter, PlotConfig
 
+# Import streamlined builder
+from linear_object_builder import LinearObjectBuilder
+
 def run(axis_json: str, cross_json: str, obj_json: str, main_json: str, section_json: str, out_html: str,
         twist_deg: float = 0.0, plan_rotation_deg: float = 0.0, aspect_equal: bool = False,
         debug_units: bool = False, debug_embed: bool = False) -> None:
-    axis_rows = json.load(open(axis_json, 'r', encoding='utf-8'))
-    cross_rows = json.load(open(cross_json, 'r', encoding='utf-8'))
-    pier_rows  = json.load(open(obj_json,  'r', encoding='utf-8'))
-    ms_rows    = json.load(open(main_json, 'r', encoding='utf-8'))
+    
+    # Use streamlined LinearObjectBuilder approach
+    builder = LinearObjectBuilder(verbose=True)
+    builder.load_from_files(axis_json, cross_json, obj_json, main_json, section_json)
+    
+    try:
+        # Try to create pier using streamlined workflow
+        pier = builder.create_object("PierObject")
+        
+        # Build geometry using standardized method
+        build = builder.build_geometry(
+            pier,
+            twist_deg=twist_deg,
+            plan_rotation_deg=plan_rotation_deg
+        )
+        
+    except Exception as e:
+        print(f"Streamlined approach failed ({e}), falling back to legacy method...")
+        
+        # Fallback to legacy method for compatibility
+        axis_rows = json.load(open(axis_json, 'r', encoding='utf-8'))
+        cross_rows = json.load(open(cross_json, 'r', encoding='utf-8'))
+        pier_rows  = json.load(open(obj_json,  'r', encoding='utf-8'))
+        ms_rows    = json.load(open(main_json, 'r', encoding='utf-8'))
 
-    # Load components
-    axes = {r.get('Name'): load_axis_from_rows(axis_rows, r.get('Name'))
-            for r in axis_rows if r.get('Class') == 'Axis' and r.get('Name')}
-    by_ncs = index_cross_sections_by_ncs(cross_rows)
-    cross_sections = {ncs: load_section_for_ncs(ncs, by_ncs, section_json) for ncs in by_ncs.keys()}
-    mainstations = {name: load_mainstations_from_rows(ms_rows, axis_name=name) for name in axes.keys()}
+        # Load components
+        axes = {r.get('Name'): load_axis_from_rows(axis_rows, r.get('Name'))
+                for r in axis_rows if r.get('Class') == 'Axis' and r.get('Name')}
+        by_ncs = index_cross_sections_by_ncs(cross_rows)
+        cross_sections = {ncs: load_section_for_ncs(ncs, by_ncs, section_json) for ncs in by_ncs.keys()}
+        mainstations = {name: load_mainstations_from_rows(ms_rows, axis_name=name) for name in axes.keys()}
 
-    piers: list[PierObject] = simple_load_piers(pier_rows)
-    if not piers:
-        # synthesize single pier
-        p = PierObject(); p.name = 'SyntheticPier'
-        if axes:
-            p.axis_name = next(iter(axes.keys()))
-        if cross_sections:
-            key = next(iter(cross_sections.keys()))
-            p.top_cross_section_ncs = key
-            p.base_section = cross_sections[key]
-        piers = [p]
+        piers: list[PierObject] = simple_load_piers(pier_rows)
+        if not piers:
+            # synthesize single pier
+            p = PierObject(); p.name = 'SyntheticPier'
+            if axes:
+                p.axis_name = next(iter(axes.keys()))
+            if cross_sections:
+                key = next(iter(cross_sections.keys()))
+                p.top_cross_section_ncs = key
+                p.base_section = cross_sections[key]
+            piers = [p]
 
-    # Only process first pier for minimal script
-    pier = piers[0]
-    pier.configure(axes, cross_sections, mainstations)
-    if getattr(pier, 'base_section', None) is None and cross_sections:
-        pier.base_section = next(iter(cross_sections.values()))
-    pier.configure_pier_axis()
-    if getattr(pier, 'axis_obj', None) is None:
-        raise RuntimeError('Pier axis not configured')
+        # Only process first pier for minimal script
+        pier = piers[0]
+        pier.configure(axes, cross_sections, mainstations)
+        if getattr(pier, 'base_section', None) is None and cross_sections:
+            pier.base_section = next(iter(cross_sections.values()))
+        pier.configure_pier_axis()
+        if getattr(pier, 'axis_obj', None) is None:
+            raise RuntimeError('Pier axis not configured')
 
-    build = pier.build(manual=True, deck_axis=None, vertical_slices=6,
-                       station_value_m=float(getattr(pier, 'station_value', 0.0) or 0.0),
-                       twist_deg=twist_deg, plan_rotation_deg=plan_rotation_deg,
-                       debug_embed=debug_embed, debug_units=debug_units)
+        build = pier.build(manual=True, deck_axis=None, vertical_slices=6,
+                           station_value_m=float(getattr(pier, 'station_value', 0.0) or 0.0),
+                           twist_deg=twist_deg, plan_rotation_deg=plan_rotation_deg,
+                           debug_embed=debug_embed, debug_units=debug_units)
 
     cfg = PlotConfig(show_points=True, show_loops=True, show_loop_points=False, show_labels=False)
     plotter = Plotter(build.get('pier_axis'), obj_name=pier.name or pier.axis_name or 'Pier', config=cfg)
