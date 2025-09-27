@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass, field, asdict, fields
+from dataclasses import dataclass, field, asdict, fields, is_dataclass
 from typing import Any, Dict, List, Optional, ClassVar, Tuple, Union, get_args, get_origin
 import logging
 
@@ -11,11 +11,43 @@ log = logging.getLogger(__name__)
 
 VERBOSE = False
 
-from dataclasses import fields, is_dataclass, asdict
-from typing import Any, Iterable, List, Union, get_args, get_origin
-import logging
+# Base class for SPOT objects
+@dataclass
+class BaseObject:
+    """Base class for all SPOT objects with common functionality."""
+    
+    # Core identification fields that most objects have
+    name: str = ""
+    axis_name: str = ""
+    
+    # Resolved references (set by configure methods)
+    axis_obj: Optional[Axis] = None
+    
+    def set_axis(self, axis_data: List[Dict]) -> None:
+        """Set the axis object from axis data."""
+        if not self.axis_name or not axis_data:
+            return
+            
+        # Find matching axis
+        for axis_row in axis_data:
+            if (axis_row.get("Class") == "Axis" and 
+                str(axis_row.get("Name")) == self.axis_name):
+                # Create axis object using existing function
+                self.axis_obj = load_axis_from_rows(axis_data, self.axis_name)
+                break
 
-log = logging.getLogger(__name__)
+def _build_axis_index(axis_data: List[Dict], axis_map: Dict) -> Dict[str, Axis]:
+    """Build an index of axis objects by name."""
+    index = {}
+    for row in axis_data:
+        if row.get("Class") == "Axis":
+            name = str(row.get("Name", ""))
+            if name:
+                try:
+                    index[name] = load_axis_from_rows(axis_data, name)
+                except Exception as e:
+                    log.warning(f"Failed to create axis {name}: {e}")
+    return index
 
 # models/base.py
 from typing import Dict, List, Optional, Tuple

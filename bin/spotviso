@@ -1,0 +1,6 @@
+#!/bin/bash
+# SPOT VISO CLI wrapper script
+# This script makes the spotviso command available globally
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+python3 "$SCRIPT_DIR/../spotviso.py" "$@"
