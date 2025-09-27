@@ -116,7 +116,7 @@ def extract_doc_signatures(doc_file: Path) -> List[FunctionSignature]:
     # Pattern to match module headers like "### models/axis.py"
     module_pattern = re.compile(r'###?\s+models/(\w+\.py)')
     # Pattern to match function definitions in code blocks
-    func_pattern = re.compile(r'^def\s+(\w+)\s*\([^)]*\)(?:\s*->\s*[^:]+)?', re.MULTILINE)
+    func_pattern = re.compile(r'^def\s+(\w+)\s*\([^)]*\)(?:\s*->\s*([^\n]+))?', re.MULTILINE)
     # Pattern to match inline function references like "models/axis.py:function_name(...)"
     inline_pattern = re.compile(r'models/(\w+\.py):(\w+)\(([^)]*)\)(?:\s*->\s*([^,\n]+))?')
     
