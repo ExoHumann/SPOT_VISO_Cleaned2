@@ -141,6 +141,7 @@ class SpotJsonObject:
     # Dict-style access
     def __getitem__(self, key): return self._data.get(key)
     def __setitem__(self, key, value): self._data[key] = value
+    def get(self, key, default=None): return self._data.get(key, default)
 
     # Convenience
     def keys(self): return list(self._data.keys())
@@ -372,4 +373,3 @@ if __name__ == "__main__":
     ))
 
 
-   

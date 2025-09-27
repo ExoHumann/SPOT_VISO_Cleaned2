@@ -1,24 +1,6 @@
-"""Pier runner v2 (simplified)
+"""Pier runner v2 using SpotJsonObject (test version)
 
-Key points:
-    * Sequencing (multi NCS switching) is now DATA-DRIVEN only.
-        The loader (`simple_load_piers`) builds `pier.ncs_steps` from the JSON
-        (Top / Internal offsets / Bottom). No CLI flag (old --pier-ncs) is needed
-        or supported anymore.
-    * `PierObject.build()` constructs a vertical axis internally and delegates
-        geometry to `LinearObject.build()`; you select only high‑level options
-        (twist, plan rotation, number of vertical slices).
-
-Usage examples (PowerShell):
-    python run_pier2.py                          # default, auto sequencing
-    python run_pier2.py --vertical-slices 12     # denser vertical sampling
-    python run_pier2.py --twist 15               # add twist around vertical axis
-    python run_pier2.py --plan-rotation 5        # rotate plan orientation
-    python run_pier2.py --use-linear             # force linear path build flag
-    python run_pier2.py --aspect-equal           # equal aspect camera
-
-After the build we print the resolved `ncs_steps` (if any) so you can verify
-the offsets came directly from the JSON input.
+Modified to use SpotLoader and SpotJsonObject for data loading instead of direct JSON loading.
 """
 from __future__ import annotations
 import json, argparse, os, numpy as np, plotly.graph_objects as go
@@ -26,35 +8,35 @@ from models.base import load_axis_from_rows, index_cross_sections_by_ncs, load_s
 from models.main_station import load_mainstations_from_rows
 from models.pier_object import PierObject
 from models.plotter import Plotter, PlotConfig
+from spot_loader import SpotLoader
+from SPOT_Filters import SpotJsonObject
 
 
-def run(axis_json: str, cross_json: str, obj_json: str, main_json: str, section_json: str, out_html: str,
+def run(master_folder: str, branch: str, section_json: str, out_html: str,
         twist_deg: float = 0.0, plan_rotation_deg: float = 0.0, aspect_equal: bool = False,
         debug_units: bool = False, debug_embed: bool = False, vertical_slices: int = 6,
-        use_linear: bool = False) -> None:
-    axis_rows = json.load(open(axis_json, 'r', encoding='utf-8'))
-    cross_rows = json.load(open(cross_json, 'r', encoding='utf-8'))
-    pier_rows  = json.load(open(obj_json,  'r', encoding='utf-8'))
-    ms_rows    = json.load(open(main_json, 'r', encoding='utf-8'))
+        use_linear: bool = False, verbose: bool = False) -> None:
+    # Load all data using SpotLoader and wrap in SpotJsonObject
+    loader = SpotLoader(master_folder=master_folder, branch=branch)
+    loader.load_raw().group_by_class()
 
+    # Get SpotJsonObject lists for each class from grouped data
+    axis_rows = [SpotJsonObject(row) for row in loader._by_class.get('Axis', [])]
+    cross_rows = [SpotJsonObject(row) for row in loader._by_class.get('CrossSection', [])]
+    pier_rows = [SpotJsonObject(row) for row in loader._by_class.get('PierObject', [])]
+    ms_rows = [SpotJsonObject(row) for row in loader._by_class.get('MainStation', [])]
 
-
-    axes = {r.get('Name'): load_axis_from_rows(axis_rows, r.get('Name'))
-            for r in axis_rows if r.get('Class') == 'Axis' and r.get('Name')}
-    by_ncs = index_cross_sections_by_ncs(cross_rows)
+    # Build axes, cross_sections, mainstations using the SpotJsonObject lists
+    axes = {r['Name']: load_axis_from_rows([obj.to_dict() for obj in axis_rows], r['Name'])
+            for r in axis_rows if r['Class'] == 'Axis' and r['Name']}
+    by_ncs = index_cross_sections_by_ncs([obj.to_dict() for obj in cross_rows])
     cross_sections = {ncs: load_section_for_ncs(ncs, by_ncs, section_json) for ncs in by_ncs.keys()}
-    mainstations = {name: load_mainstations_from_rows(ms_rows, axis_name=name) for name in axes.keys()}
+    mainstations = {name: load_mainstations_from_rows([obj.to_dict() for obj in ms_rows], axis_name=name) for name in axes.keys()}
 
-    piers: list[PierObject] = simple_load_piers(pier_rows)
-   
+    piers: list[PierObject] = simple_load_piers([obj.to_dict() for obj in pier_rows])
 
     pier = piers[0]
-    pier.configure(axes, cross_sections, mainstations)
-    if getattr(pier, 'base_section', None) is None and cross_sections:
-        pier.base_section = next(iter(cross_sections.values()))
-    # Vertical axis now constructed inside PierObject.build(); ensure placement axis exists for anchor sampling if provided.
-    if getattr(pier, 'placement_axis_obj', None) is None and getattr(pier, 'axis_obj', None) is None:
-        raise RuntimeError('Placement axis missing before build()')
+    pier.configure(axes, cross_sections , mainstations)
 
     build = pier.build(vertical_slices=vertical_slices,
                        twist_deg=twist_deg,
@@ -65,6 +47,8 @@ def run(axis_json: str, cross_json: str, obj_json: str, main_json: str, section_
 
     # Diagnostics: show sequencing & selected cross-section codes
     meta = build.get('meta', {}) if isinstance(build, dict) else {}
+    if verbose:
+        print(f"[pier] full meta: {meta}")
     ncs_steps = meta.get('ncs_steps')
     if ncs_steps:
         print('[pier] ncs_steps (station_m -> NCS):')
@@ -110,18 +94,17 @@ def run(axis_json: str, cross_json: str, obj_json: str, main_json: str, section_
     else:
         scene = dict(xaxis_title='X (m)', yaxis_title='Y (m)', zaxis_title='Z (m)', aspectratio={'x':1,'y':1,'z':1})
     title_mode = 'LinearBuild' if use_linear else 'ManualBuild'
-    fig.update_layout(title=f"Pier2 ({title_mode}) - {os.path.basename(axis_json)}", scene=scene)
+    fig.update_layout(title=f"Pier2 SpotJson ({title_mode}) - {master_folder}/{branch}", scene=scene)
     fig.write_html(out_html)
     print(f"Saved: {out_html}")
 
+
 if __name__ == '__main__':
-    ap = argparse.ArgumentParser(description='Pier Runner v2 (manual vs linear build)')
-    ap.add_argument('--axis', default='GIT/RCZ_new1/_Axis_JSON.json')
-    ap.add_argument('--cross', default='GIT/RCZ_new1/_CrossSection_JSON.json')
-    ap.add_argument('--obj', default='GIT/RCZ_new1/_PierObject_JSON.json')
-    ap.add_argument('--main', default='GIT/RCZ_new1/_MainStation_JSON.json')
+    ap = argparse.ArgumentParser(description='Pier Runner v2 using SpotJsonObject with SpotLoader')
+    ap.add_argument('--master-folder', default='GIT')
+    ap.add_argument('--branch', default='MAIN')
     ap.add_argument('--section', default='MASTER_SECTION/MASTER_Pier.json')
-    ap.add_argument('--out', default='pier_plot2.html')
+    ap.add_argument('--out', default='pier_plot2_spotjson.html')
     ap.add_argument('--twist', type=float, default=0.0)
     ap.add_argument('--plan-rotation', type=float, default=0.0)
     ap.add_argument('--vertical-slices', type=int, default=6)
@@ -129,8 +112,9 @@ if __name__ == '__main__':
     ap.add_argument('--use-linear', action='store_true')
     ap.add_argument('--debug-units', action='store_true')
     ap.add_argument('--debug-embed', action='store_true')
+    ap.add_argument('--verbose', action='store_true')
     a = ap.parse_args()
-    run(a.axis, a.cross, a.obj, a.main, a.section, a.out,
+    run(a.master_folder, a.branch, a.section, a.out,
         twist_deg=a.twist, plan_rotation_deg=a.plan_rotation,
         aspect_equal=a.aspect_equal, debug_units=a.debug_units, debug_embed=a.debug_embed,
-        vertical_slices=a.vertical_slices, use_linear=a.use_linear)
+        vertical_slices=a.vertical_slices, use_linear=a.use_linear, verbose=a.verbose)

@@ -153,7 +153,7 @@ def main(axis_json, cross_json, obj_json, mainstation_json, section_json, out_ht
     print(f"Saved: {out_html}")
 
 if __name__ == "__main__":
-    base="C:\\Users\\KrzyS\\OneDrive\\Skrivebord\\Visio\\SPOT_VISO_Cleaned\\SPOT_VISO\\"
+    base="C:\\Users\\KrzyS\\OneDrive\\Skrivebord\\Visio\\SPOT_VISO_Cleaned\\"
     ap = argparse.ArgumentParser(description="Test DeckObject with different data sources")
     ap.add_argument("--axis", default=base+"GIT\\RCZ_new1\\_Axis_JSON.json", help="Axis JSON file")
     ap.add_argument("--cross", default=base+"GIT\\RCZ_new1\\_CrossSection_JSON.json", help="Cross section JSON file")

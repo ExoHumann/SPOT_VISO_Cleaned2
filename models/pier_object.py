@@ -10,7 +10,7 @@ Features retained:
 
 from dataclasses import dataclass, field
 from typing import Dict, Optional, List
-import math, numpy as np
+import math, numpy as np, warnings
 
 from .linear_object import LinearObject
 from .axis import Axis
@@ -77,7 +77,12 @@ class PierObject(LinearObject):
                 for k, v in available_cross_sections.items():
                     if v is candidate:
                         self.selected_cross_section_ncs = k; break
+                warnings.warn(f"PierObject '{self.name or self.axis_name}': No matching cross-section found, using arbitrary NCS {self.selected_cross_section_ncs}")
             self.base_section = candidate
+
+        # Ensure placement axis exists for anchor sampling
+        if getattr(self, 'placement_axis_obj', None) is None and getattr(self, 'axis_obj', None) is None:
+            raise RuntimeError('Placement axis missing during configure()')
 
     def build(self, *_, **kwargs):  # type: ignore[override]
         vertical_slices = int(kwargs.pop("vertical_slices", 6) or 6)
