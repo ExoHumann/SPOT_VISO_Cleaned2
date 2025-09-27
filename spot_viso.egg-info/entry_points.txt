@@ -1,0 +1,2 @@
+[console_scripts]
+spotviso = spot.app.cli:main

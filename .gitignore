@@ -18,3 +18,4 @@ models/cross_sectionold.py
 *.tmp
 tmp/
 .pytest_cache/
+artifacts/
