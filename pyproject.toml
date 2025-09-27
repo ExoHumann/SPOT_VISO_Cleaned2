@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spot-viso"
+version = "0.1.0"
+description = "SPOT VISO - Bridge Structure Visualization System"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [
+    {name = "SPOT VISO Team"}
+]
+dependencies = [
+    "numpy>=1.24.0",
+    "plotly>=5.0.0",
+    "scipy>=1.10.0", 
+    "jinja2>=3.0.0",
+    "matplotlib>=3.5.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0"
+]
+
+[project.scripts]
+spotviso = "spot.app.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["spot*", "models*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.js", "*.html", "*.md"]
+
+[tool.pytest.ini_options]
+markers = [
+    "smoke: quick smoke tests for basic functionality"
+]
